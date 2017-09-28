@@ -1,75 +1,59 @@
 #!/bin/bash -e
 
 source ./env
+source ./common
+
+validate_cli $OM_CMD
+validate_cli $JQ_CMD
+validate_cli curl
+
+validate_directory_exists $DIRECTORY false
 
 if [ ! -d "$DIRECTORY" ]; then
   echo "$DIRECTORY with the resource configurations does not exist"
   exit 1
 fi
 
-PRODUCTS_DEPLOYED=$(om -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD curl -path /api/v0/deployed/products -s)
+PRODUCTS_DEPLOYED=$($OM_CMD -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD curl -path /api/v0/deployed/products -s)
 
-INSTALLATION_NAMES=$(echo "$PRODUCTS_DEPLOYED" | jq -r '.[].installation_name')
+INSTALLATION_NAMES=$(echo "$PRODUCTS_DEPLOYED" | $JQ_CMD -r '.[].installation_name')
 
 echo "$INSTALLATION_NAMES" | while read INSTALLATION_NAME
 do
   if [[ "$INSTALLATION_NAME" != "p-bosh" ]]; then
-    PRODUCT_TYPE=$(echo "$PRODUCTS_DEPLOYED" | jq -r --arg installation_name "$INSTALLATION_NAME" '.[] | select(.installation_name | contains($installation_name)) | .type')
-    PRODUCT_JOBS=$(om -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD curl -path /api/v0/staged/products/$INSTALLATION_NAME/jobs -s)
-    PRODUCT_IDENTIFIER=$(echo "$PRODUCTS_DEPLOYED" | jq -r --arg installation_name "$INSTALLATION_NAME" '.[] | select(.installation_name | contains($installation_name)) | .guid')
-    CURRENT_PRODUCT_RESOURCES=$(om -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD curl -path /api/v0/staged/products/$INSTALLATION_NAME/resources -s)
+    PRODUCT_TYPE=$(echo "$PRODUCTS_DEPLOYED" | $JQ_CMD -r --arg installation_name "$INSTALLATION_NAME" '.[] | select(.installation_name | contains($installation_name)) | .type')
+    PRODUCT_JOBS=$($OM_CMD -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD curl -path /api/v0/staged/products/$INSTALLATION_NAME/jobs -s)
+    PRODUCT_IDENTIFIER=$(echo "$PRODUCTS_DEPLOYED" | $JQ_CMD -r --arg installation_name "$INSTALLATION_NAME" '.[] | select(.installation_name | contains($installation_name)) | .guid')
 
     if [[ -f $DIRECTORY/$PRODUCT_TYPE-resources.json ]]; then
-      IDENTIFIERS=$(cat $DIRECTORY/$PRODUCT_TYPE-resources.json | jq -r '.resources[] | .identifier')
+      IDENTIFIERS=$(cat $DIRECTORY/$PRODUCT_TYPE-resources.json | $JQ_CMD -r '.resources[] | .identifier')
+      CURRENT_PRODUCT_RESOURCES=$($OM_CMD -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD curl -path /api/v0/staged/products/$INSTALLATION_NAME/resources -s)
 
       echo "$IDENTIFIERS" | while read IDENTIFIER
       do
-        PRODUCT_RESOURCE=$(cat $DIRECTORY/$PRODUCT_TYPE-resources.json | jq -r --arg IDENTIFIER $IDENTIFIER '.resources[] | select(.identifier==$IDENTIFIER)')
-        RESOURCE=$(echo "$PRODUCT_RESOURCE" | jq -r '.identifier')
-        INSTANCE_TYPE=$(echo "$PRODUCT_RESOURCE" | jq -r '.instance_type_id')
-        INSTANCES=$(echo "$PRODUCT_RESOURCE" | jq -r '.instances')
-        PERSISTENT_DISK_SIZE_MB=$(echo "$PRODUCT_RESOURCE" | jq -r '.persistent_disk_mb')
-        if [[ ! -z "$INSTANCES" ]]; then
-          DATA=$(
-            echo "{}" | jq -n \
-              --arg INSTANCE_TYPE "$INSTANCE_TYPE" \
-              --argjson INSTANCES $INSTANCES \
-              --arg PERSISTENT_DISK_SIZE_MB "$PERSISTENT_DISK_SIZE_MB" \
-              '
-              . +
-              {
-                "instances": $INSTANCES
-              }
-              +
-              if $INSTANCES == "" then
-              {
-                "instance_type": {
-                  "id": "automatic"
-                }
-              }
-              else
-              {
-                "instance_type": {
-                  "id": $INSTANCE_TYPE
-                }
-              }
-              end
-              +
-              if $PERSISTENT_DISK_SIZE_MB != "null" then
-              {
-                "persistent_disk": {
-                  "size_mb": "automatic"
-                }
-              }
-              else .
-              end
-              '
-            )
+        EXPECTED_PRODUCT_RESOURCE=$(cat $DIRECTORY/$PRODUCT_TYPE-resources.json | $JQ_CMD -r --arg IDENTIFIER $IDENTIFIER '.resources[] | select(.identifier==$IDENTIFIER)')
+        EXPECTED_INSTANCE_TYPE=$(echo "$EXPECTED_PRODUCT_RESOURCE" | $JQ_CMD -r '.instance_type_id')
+        EXPECTED_INSTANCES=$(echo "$EXPECTED_PRODUCT_RESOURCE" | $JQ_CMD -r '.instances')
+        EXPECTED_PERSISTENT_DISK_SIZE_MB=$(echo "$EXPECTED_PRODUCT_RESOURCE" | $JQ_CMD -r '.persistent_disk_mb')
 
-          JOB_ID=$(echo "$PRODUCT_JOBS" | jq -r --arg RESOURCE $RESOURCE '.jobs[] | select(.name==$RESOURCE) | .guid')
-          UPDATE_RESOURCE_RESPONSE=$(om -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD curl -s -path /api/v0/staged/products/$PRODUCT_IDENTIFIER/jobs/$JOB_ID/resource_config -x PUT -d "$DATA")
-          echo "Configuring $RESOURCE with $INSTANCES instances and setting the instance type to $INSTANCE_TYPE and recevied response $UPDATE_RESOURCE_RESPONSE "
+        CURRENT_PRODUCT_RESOURCE=$(echo "$CURRENT_PRODUCT_RESOURCES" | $JQ_CMD -r --arg IDENTIFIER $IDENTIFIER '.resources[] | select(.identifier==$IDENTIFIER)')
+        CURRENT_INSTANCE_TYPE=$(echo "$CURRENT_PRODUCT_RESOURCE" | $JQ_CMD -r '.instance_type_id')
+        CURRENT_INSTANCES=$(echo "$CURRENT_PRODUCT_RESOURCE" | $JQ_CMD -r '.instances')
+        CURRENT_PERSISTENT_DISK_SIZE_MB=$(echo "$CURRENT_PRODUCT_RESOURCE" | $JQ_CMD -r '.persistent_disk_mb')
+
+        RESOURCE=$(echo "$CURRENT_PRODUCT_RESOURCE" | $JQ_CMD -r '.identifier')
+
+
+        if [[ ("$EXPECTED_INSTANCE_TYPE" != "$CURRENT_INSTANCE_TYPE") \
+              || ("$EXPECTED_INSTANCES" != "$CURRENT_INSTANCES") \
+              || ("$EXPECTED_PERSISTENT_DISK_SIZE_MB" != "$CURRENT_PERSISTENT_DISK_SIZE_MB") ]]; then
+          update_resource_configuration "$RESOURCE" "$EXPECTED_INSTANCE_TYPE" \
+            "$EXPECTED_INSTANCES" "$EXPECTED_PERSISTENT_DISK_SIZE_MB" \
+            "$PRODUCT_JOBS" "$PRODUCT_IDENTIFIER"
+        else
+          echo "No configuration changes for resource $RESOURCE in the deployment $INSTALLATION_NAME, hence skipping..."
         fi
+
       done
 
       echo "Successfully updated the $PRODUCT_IDENTIFIER configuration"

@@ -1,21 +1,24 @@
 #!/bin/bash -e
 
 source ./env
+source ./common
 
-if [ ! -d "$DIRECTORY" ]; then
-  echo "Creating the $DIRECTORY"
-  mkdir -p $DIRECTORY
-fi
+validate_cli $OM_CMD
+validate_cli $JQ_CMD
+validate_cli curl
 
-PRODUCTS_DEPLOYED=$(om -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD curl -path /api/v0/deployed/products -s)
+validate_directory_exists $DIRECTORY true
 
-INSTALLATION_NAMES=$(echo "$PRODUCTS_DEPLOYED" | jq -r '.[].installation_name')
+
+PRODUCTS_DEPLOYED=$($OM_CMD -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD curl -path /api/v0/deployed/products -s)
+
+INSTALLATION_NAMES=$(echo "$PRODUCTS_DEPLOYED" | $JQ_CMD -r '.[].installation_name')
 
 echo "$INSTALLATION_NAMES" | while read INSTALLATION_NAME
 do
   if [[ "$INSTALLATION_NAME" != "p-bosh" ]]; then
-    PRODUCT_RESOURCES=$(om -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD curl -path /api/v0/staged/products/$INSTALLATION_NAME/resources -s)
-    PRODUCT_TYPE=$(echo "$PRODUCTS_DEPLOYED" | jq -r --arg installation_name "$INSTALLATION_NAME" '.[] | select(.installation_name | contains($installation_name)) | .type')
+    PRODUCT_RESOURCES=$($OM_CMD -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD curl -path /api/v0/staged/products/$INSTALLATION_NAME/resources -s)
+    PRODUCT_TYPE=$(echo "$PRODUCTS_DEPLOYED" | $JQ_CMD -r --arg installation_name "$INSTALLATION_NAME" '.[] | select(.installation_name | contains($installation_name)) | .type')
 
     echo "$PRODUCT_RESOURCES" > $DIRECTORY/$PRODUCT_TYPE-resources.json
   fi

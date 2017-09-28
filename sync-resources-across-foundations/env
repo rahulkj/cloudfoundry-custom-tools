@@ -9,3 +9,11 @@ OPS_MGR_PWD=
 
 #Path to the Output Directory
 DIRECTORY=
+
+# Specify your cli names or path here
+
+# Download OM CLI from - https://github.com/pivotal-cf/om/releases
+OM_CMD=om
+
+# Download JQ CLI from - https://github.com/stedolan/jq/releases
+JQ_CMD=jq
