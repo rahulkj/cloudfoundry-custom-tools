@@ -1,8 +1,11 @@
 #!/bin/bash -e
 
-OPS_MGR_HOST=
-OPS_MGR_USR=
-OPS_MGR_PWD=
+source ./env
+
+if [ ! -d "$DIRECTORY" ]; then
+  echo "$DIRECTORY with the resource configurations does not exist"
+  exit 1
+fi
 
 PRODUCTS_DEPLOYED=$(om -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD curl -path /api/v0/deployed/products -s)
 
@@ -14,14 +17,13 @@ do
     PRODUCT_TYPE=$(echo "$PRODUCTS_DEPLOYED" | jq -r --arg installation_name "$INSTALLATION_NAME" '.[] | select(.installation_name | contains($installation_name)) | .type')
     PRODUCT_JOBS=$(om -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD curl -path /api/v0/staged/products/$INSTALLATION_NAME/jobs -s)
     PRODUCT_IDENTIFIER=$(echo "$PRODUCTS_DEPLOYED" | jq -r --arg installation_name "$INSTALLATION_NAME" '.[] | select(.installation_name | contains($installation_name)) | .guid')
+    CURRENT_PRODUCT_RESOURCES=$(om -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD curl -path /api/v0/staged/products/$INSTALLATION_NAME/resources -s)
 
-    echo "$PRODUCT_JOBS" > $PRODUCT_TYPE-jobs.json
-
-    IDENTIFIERS=$(cat $PRODUCT_TYPE-resources.json | jq -r '.resources[] | .identifier')
+    IDENTIFIERS=$(cat $DIRECTORY/$PRODUCT_TYPE-resources.json | jq -r '.resources[] | .identifier')
 
     echo "$IDENTIFIERS" | while read IDENTIFIER
     do
-      PRODUCT_RESOURCE=$(cat $PRODUCT_TYPE-resources.json | jq -r --arg IDENTIFIER $IDENTIFIER '.resources[] | select(.identifier==$IDENTIFIER)')
+      PRODUCT_RESOURCE=$(cat $DIRECTORY/$PRODUCT_TYPE-resources.json | jq -r --arg IDENTIFIER $IDENTIFIER '.resources[] | select(.identifier==$IDENTIFIER)')
       RESOURCE=$(echo "$PRODUCT_RESOURCE" | jq -r '.identifier')
       INSTANCE_TYPE=$(echo "$PRODUCT_RESOURCE" | jq -r '.instance_type_id')
       INSTANCES=$(echo "$PRODUCT_RESOURCE" | jq -r '.instances')
@@ -35,11 +37,22 @@ do
             '
             . +
             {
-              "instances": $INSTANCES,
+              "instances": $INSTANCES
+            }
+            +
+            if $INSTANCES == "" then
+            {
+              "instance_type": {
+                "id": "automatic"
+              }
+            }
+            else
+            {
               "instance_type": {
                 "id": $INSTANCE_TYPE
               }
             }
+            end
             +
             if $PERSISTENT_DISK_SIZE_MB != "null" then
             {
@@ -52,7 +65,7 @@ do
             '
           )
 
-        JOB_ID=$(cat $PRODUCT_TYPE-jobs.json | jq -r --arg RESOURCE $RESOURCE '.jobs[] | select(.name==$RESOURCE) | .guid')
+        JOB_ID=$(echo "$PRODUCT_JOBS" | jq -r --arg RESOURCE $RESOURCE '.jobs[] | select(.name==$RESOURCE) | .guid')
         UPDATE_RESOURCE_RESPONSE=$(om -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD curl -s -path /api/v0/staged/products/$PRODUCT_IDENTIFIER/jobs/$JOB_ID/resource_config -x PUT -d "$DATA")
         echo "Configuring $RESOURCE with $INSTANCES instances and setting the instance type to $INSTANCE_TYPE and recevied response $UPDATE_RESOURCE_RESPONSE "
       fi

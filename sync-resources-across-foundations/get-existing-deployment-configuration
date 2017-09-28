@@ -1,8 +1,11 @@
 #!/bin/bash -e
 
-OPS_MGR_HOST=
-OPS_MGR_USR=
-OPS_MGR_PWD=
+source ./env
+
+if [ ! -d "$DIRECTORY" ]; then
+  echo "Creating the $DIRECTORY"
+  mkdir -p $DIRECTORY
+fi
 
 PRODUCTS_DEPLOYED=$(om -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD curl -path /api/v0/deployed/products -s)
 
@@ -14,7 +17,7 @@ do
     PRODUCT_RESOURCES=$(om -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD curl -path /api/v0/staged/products/$INSTALLATION_NAME/resources -s)
     PRODUCT_TYPE=$(echo "$PRODUCTS_DEPLOYED" | jq -r --arg installation_name "$INSTALLATION_NAME" '.[] | select(.installation_name | contains($installation_name)) | .type')
 
-    echo "$PRODUCT_RESOURCES" > $PRODUCT_TYPE-resources.json
+    echo "$PRODUCT_RESOURCES" > $DIRECTORY/$PRODUCT_TYPE-resources.json
   fi
 done
 

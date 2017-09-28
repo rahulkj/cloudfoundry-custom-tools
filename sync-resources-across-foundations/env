@@ -1,0 +1,11 @@
+#Ops Manager FQDN or IP
+OPS_MGR_HOST=
+
+#Ops Manager User
+OPS_MGR_USR=
+
+#Ops Manager Password
+OPS_MGR_PWD=
+
+#Path to the Output Directory
+DIRECTORY=
