@@ -1,0 +1,32 @@
+#!/bin/bash
+
+UPDATED_JSON=$(cat $1 | jq -L $PWD 'import "library" as lib;
+   lib::walk(if type == "object" then del(.type) else . end)')
+
+UPDATED_JSON=$(echo "$UPDATED_JSON" | jq -L $PWD 'import "library" as lib;
+   lib::walk(if type == "object" then del(.optional) else . end)')
+
+UPDATED_JSON=$(echo "$UPDATED_JSON" | jq -L $PWD 'import "library" as lib;
+  lib::walk(if type == "object" then del(.credential) else . end)')
+
+UPDATED_JSON=$(echo "$UPDATED_JSON" | jq -L $PWD 'import "library" as lib;
+  lib::walk(if type == "object" then del(.guid) else . end)')
+
+UPDATED_JSON=$(echo "$UPDATED_JSON" | jq -L $PWD 'import "library" as lib;
+  lib::walk(if type == "object" then del(.options) else . end)')
+
+KEYS=$(echo "$UPDATED_JSON" | jq '.[] | keys[]')
+
+for i in $(echo $KEYS | sed "s/,/ /g")
+do
+    KEY=$(echo $i | tr -d '"')
+    IS_NON_CONFIGURABLE=$(echo "$UPDATED_JSON" | jq --arg "key" "$KEY" '.properties[$key] | select(.configurable==false)')
+    if [[ ! -z "$IS_NON_CONFIGURABLE" ]]; then
+      UPDATED_JSON=$(echo "$UPDATED_JSON" | jq --arg "key" "$KEY" 'del(.properties[$key])')
+    fi
+done
+
+UPDATED_JSON=$(echo "$UPDATED_JSON" | jq -L $PWD 'import "library" as lib;
+  lib::walk(if type == "object" then del(.configurable) else . end)')
+
+echo "$UPDATED_JSON" | jq '.[]' > modified.json
