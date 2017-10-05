@@ -17,3 +17,9 @@ OM_CMD=om
 
 # Download JQ CLI from - https://github.com/stedolan/jq/releases
 JQ_CMD=jq
+
+# Possible values are default,enabled,disabled,when-changed
+SMOKE_TEST_ERRAND_STATE=disabled
+
+# Possible values are default,enabled,disabled,when-changed
+ERRAND_STATE=when-changed
