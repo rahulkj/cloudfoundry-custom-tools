@@ -35,8 +35,19 @@ do
           printf "$format" "$PRODUCT_TYPE" "$ERRAND" "$ERRAND_STATE" "Changed"
         fi
       elif [[ "$ERRAND" == "smoke-tests" ]]; then
-        RESPONSE=$($OM_CMD -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD set-errand-state -p $PRODUCT_TYPE -e $ERRAND --post-deploy-state $SMOKE_TEST_ERRAND_STATE)
-        printf "$format" "$PRODUCT_TYPE" "$ERRAND" "$SMOKE_TEST_ERRAND_STATE" "Changed"
+        CURRENT_STATUS=$(echo "$ERRANDS_RESPONSE" | jq -r --arg errand "$ERRAND" '.errands[] | select(.name == $errand) | .post_deploy')
+        if [[ "$CURRENT_STATUS" == "false" ]]; then
+          CURRENT_STATUS="disabled"
+        elif [[ "$CURRENT_STATUS" == "true" ]]; then
+            CURRENT_STATUS="enabled"
+        fi
+
+        if [[ "$CURRENT_STATUS" != "$SMOKE_TEST_ERRAND_STATE" ]]; then
+          RESPONSE=$($OM_CMD -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD set-errand-state -p $PRODUCT_TYPE -e $ERRAND --post-deploy-state $SMOKE_TEST_ERRAND_STATE)
+          printf "$format" "$PRODUCT_TYPE" "$ERRAND" "$SMOKE_TEST_ERRAND_STATE" "Changed"
+        else
+          printf "$format" "$PRODUCT_TYPE" "$ERRAND" "$CURRENT_STATUS" "Unchanged"
+        fi
       fi
     done
 

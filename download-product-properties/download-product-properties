@@ -1,0 +1,22 @@
+#!/bin/bash -ex
+
+OPS_MGR_HOST=https://opsmgr.homelab.io
+OPS_MGR_USERNAME=admin
+OPS_MGR_PASSWORD=welcome
+OUTPUT_FOLDER=../manifests
+
+PRODUCTS=$(om -t $OPS_MGR_HOST -u $OPS_MGR_USERNAME -p $OPS_MGR_PASSWORD -k curl -p /api/v0/staged/products)
+
+PRODUCT_GUIDS=$(echo $PRODUCTS | jq -r '.[] | .guid')
+
+for i in $(echo $PRODUCT_GUIDS)
+do
+    PRODUCT_GUID=$(echo $i)
+    PRODUCT_NAME=$(echo $PRODUCTS | jq -r --arg product_guid $i '.[] | select(.guid==$product_guid) | .type')
+    if [[ "$PRODUCT_NAME" != "p-bosh" ]]; then
+      PRODUCT_PROPERTIES=$(om -t $OPS_MGR_HOST -u $OPS_MGR_USERNAME -p $OPS_MGR_PASSWORD -k curl -p /api/v0/staged/products/$PRODUCT_GUID/properties)
+      echo "$PRODUCT_PROPERTIES" > $OUTPUT_FOLDER/$PRODUCT_NAME.json
+      cd ../clean-up-pipelines-json/
+      ./cleanup-json $OUTPUT_FOLDER/$PRODUCT_NAME.json $PRODUCT_NAME
+    fi
+done
