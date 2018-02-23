@@ -23,11 +23,11 @@ UPDATED_JSON=$(echo "$UPDATED_JSON" | jq -L $PWD 'import "library" as lib;
 UPDATED_JSON=$(echo "$UPDATED_JSON" | jq -L $PWD 'import "library" as lib;
   lib::walk(if type == "object" then del(.options) else . end)')
 
-KEYS=$(echo "$UPDATED_JSON" | jq '.[] | keys[]')
+KEYS=$(echo "$UPDATED_JSON" | jq -r '.[] | keys[]')
 
 for i in $(echo $KEYS | sed "s/,/ /g")
 do
-    KEY=$(echo $i | tr -d '"')
+    KEY=$(echo $i)
     IS_NON_CONFIGURABLE=$(echo "$UPDATED_JSON" | jq --arg "key" "$KEY" '.properties[$key] | select(.configurable==false)')
     if [[ ! -z "$IS_NON_CONFIGURABLE" ]]; then
       UPDATED_JSON=$(echo "$UPDATED_JSON" | jq --arg "key" "$KEY" 'del(.properties[$key])')
