@@ -1,13 +1,13 @@
 #!/bin/bash -e
 
-source ./env
+source ../env
 source ./common
 
 validate_cli $OM_CMD
 validate_cli $JQ_CMD
 validate_cli curl
 
-validate_directory_exists $DIRECTORY true
+validate_directory_exists $OUTPUT_DIR true
 
 
 PRODUCTS_DEPLOYED=$($OM_CMD -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD curl -path /api/v0/deployed/products -s)
@@ -20,7 +20,7 @@ do
     PRODUCT_RESOURCES=$($OM_CMD -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD curl -path /api/v0/staged/products/$INSTALLATION_NAME/resources -s)
     PRODUCT_TYPE=$(echo "$PRODUCTS_DEPLOYED" | $JQ_CMD -r --arg installation_name "$INSTALLATION_NAME" '.[] | select(.installation_name | contains($installation_name)) | .type')
 
-    echo "$PRODUCT_RESOURCES" > $DIRECTORY/$PRODUCT_TYPE-resources.json
+    echo "$PRODUCT_RESOURCES" > $OUTPUT_DIR/$PRODUCT_TYPE-resources.json
   fi
 done
 

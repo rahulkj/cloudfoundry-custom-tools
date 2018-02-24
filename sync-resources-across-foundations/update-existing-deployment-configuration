@@ -1,16 +1,16 @@
 #!/bin/bash -e
 
-source ./env
+source ../env
 source ./common
 
 validate_cli $OM_CMD
 validate_cli $JQ_CMD
 validate_cli curl
 
-validate_directory_exists $DIRECTORY false
+validate_directory_exists $OUTPUT_DIR false
 
-if [ ! -d "$DIRECTORY" ]; then
-  echo "$DIRECTORY with the resource configurations does not exist"
+if [ ! -d "$OUTPUT_DIR" ]; then
+  echo "$OUTPUT_DIR with the resource configurations does not exist"
   exit 1
 fi
 
@@ -25,13 +25,13 @@ do
     PRODUCT_JOBS=$($OM_CMD -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD curl -path /api/v0/staged/products/$INSTALLATION_NAME/jobs -s)
     PRODUCT_IDENTIFIER=$(echo "$PRODUCTS_DEPLOYED" | $JQ_CMD -r --arg installation_name "$INSTALLATION_NAME" '.[] | select(.installation_name | contains($installation_name)) | .guid')
 
-    if [[ -f $DIRECTORY/$PRODUCT_TYPE-resources.json ]]; then
-      IDENTIFIERS=$(cat $DIRECTORY/$PRODUCT_TYPE-resources.json | $JQ_CMD -r '.resources[] | .identifier')
+    if [[ -f $OUTPUT_DIR/$PRODUCT_TYPE-resources.json ]]; then
+      IDENTIFIERS=$(cat $OUTPUT_DIR/$PRODUCT_TYPE-resources.json | $JQ_CMD -r '.resources[] | .identifier')
       CURRENT_PRODUCT_RESOURCES=$($OM_CMD -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD curl -path /api/v0/staged/products/$INSTALLATION_NAME/resources -s)
 
       echo "$IDENTIFIERS" | while read IDENTIFIER
       do
-        EXPECTED_PRODUCT_RESOURCE=$(cat $DIRECTORY/$PRODUCT_TYPE-resources.json | $JQ_CMD -r --arg IDENTIFIER $IDENTIFIER '.resources[] | select(.identifier==$IDENTIFIER)')
+        EXPECTED_PRODUCT_RESOURCE=$(cat $OUTPUT_DIR/$PRODUCT_TYPE-resources.json | $JQ_CMD -r --arg IDENTIFIER $IDENTIFIER '.resources[] | select(.identifier==$IDENTIFIER)')
         EXPECTED_INSTANCE_TYPE=$(echo "$EXPECTED_PRODUCT_RESOURCE" | $JQ_CMD -r '.instance_type_id')
         EXPECTED_INSTANCES=$(echo "$EXPECTED_PRODUCT_RESOURCE" | $JQ_CMD -r '.instances')
         EXPECTED_PERSISTENT_DISK_SIZE_MB=$(echo "$EXPECTED_PRODUCT_RESOURCE" | $JQ_CMD -r '.persistent_disk_mb')
@@ -58,7 +58,7 @@ do
 
       echo "Successfully updated the $PRODUCT_IDENTIFIER configuration"
     else
-      echo "Skipping updating the $PRODUCT_IDENTIFIER configuration as the $DIRECTORY/$PRODUCT_TYPE-resources.json does not exist"
+      echo "Skipping updating the $PRODUCT_IDENTIFIER configuration as the $OUTPUT_DIR/$PRODUCT_TYPE-resources.json does not exist"
     fi
   fi
 done

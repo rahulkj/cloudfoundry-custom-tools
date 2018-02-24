@@ -1,14 +1,20 @@
 #!/bin/bash
 
-FILE=$1
-PRODUCT_NAME=$2
+PROPERTIES_FILE=$1
+RESOURCES_FILE=$2
+PRODUCT_NAME=$3
+OUTPUT_DIR=$4
 
-if [[ -z "$FILE" ]]; then
-  echo "Provided file $FILE does not exist."
+if [ ! -d "$OUTPUT_DIR/modified" ]; then
+    mkdir -p $OUTPUT_DIR/modified
+fi
+
+if [[ -z "$PROPERTIES_FILE" ]]; then
+  echo "Provided file $PROPERTIES_FILE does not exist."
   exit 1
 fi
 
-UPDATED_JSON=$(cat $FILE | jq -L $PWD 'import "library" as lib;
+UPDATED_JSON=$(cat $PROPERTIES_FILE | jq -L $PWD 'import "library" as lib;
    lib::walk(if type == "object" then del(.type) else . end)')
 
 UPDATED_JSON=$(echo "$UPDATED_JSON" | jq -L $PWD 'import "library" as lib;
@@ -37,4 +43,6 @@ done
 UPDATED_JSON=$(echo "$UPDATED_JSON" | jq -L $PWD 'import "library" as lib;
   lib::walk(if type == "object" then del(.configurable) else . end)')
 
-echo "$UPDATED_JSON" | jq '.[]' > $PRODUCT_NAME-modified.json
+echo "$UPDATED_JSON" | jq '.[]' > $OUTPUT_DIR/modified/$PRODUCT_NAME.json
+
+./convert-json $OUTPUT_DIR/modified/$PRODUCT_NAME.json $RESOURCES_FILE $PRODUCT_NAME $OUTPUT_DIR

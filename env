@@ -8,7 +8,7 @@ OPS_MGR_USR=
 OPS_MGR_PWD=
 
 #Path to the Output Directory
-DIRECTORY=
+OUTPUT_DIR=
 
 # Specify your cli names or path here
 
