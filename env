@@ -1,22 +1,24 @@
+# Download OM CLI from - https://github.com/pivotal-cf/om/releases
+export OM_CMD=om
+
+# Download JQ CLI from - https://github.com/stedolan/jq/releases
+export JQ_CMD=jq
+
+export CURRENT_PWD=$PWD
+
 #Ops Manager FQDN or IP
 OPS_MGR_HOST=
 
 #Ops Manager User
-OPS_MGR_USR=
+OPS_MGR_USR=admin
 
 #Ops Manager Password
 OPS_MGR_PWD=
 
 #Path to the Output Directory
-OUTPUT_DIR=
+OUTPUT_DIR=$CURRENT_PWD/../manifests
 
 # Specify your cli names or path here
-
-# Download OM CLI from - https://github.com/pivotal-cf/om/releases
-OM_CMD=om
-
-# Download JQ CLI from - https://github.com/stedolan/jq/releases
-JQ_CMD=jq
 
 # Possible values are default,enabled,disabled,when-changed
 SMOKE_TEST_ERRAND_STATE=disabled
