@@ -1,2 +1,25 @@
-.DS_Store
+## Project ignores ##
 manifests/
+
+## Common ignores ##
+
+# Mac OS
+.DS_Store
+._*
+.Trashes/
+
+# Linux
+*~
+*.swp
+
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Development extensions
+*.bak
+*.log
+*.out
+*.tmp
