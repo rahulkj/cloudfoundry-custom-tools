@@ -28,10 +28,9 @@ do
       PRODUCT_RESOURCES=$($OM_CMD -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD -k curl -s -p /api/v0/staged/products/$PRODUCT_GUID/resources)
       echo "$PRODUCT_RESOURCES" > $OUTPUT_DIR/original/$PRODUCT_NAME-resources.json
 
-      cd $CURRENT_PWD/clean-up-pipelines-json/
+      cd $CURRENT_PWD/scripts
       ./cleanup-json $OUTPUT_DIR/original/$PRODUCT_NAME.json $PRODUCT_NAME $OUTPUT_DIR
 
-      cd $CURRENT_PWD/generate-config-tasks/
       ./generate-tasks $OUTPUT_DIR/modified/$PRODUCT_NAME.json $OUTPUT_DIR/original/$PRODUCT_NAME-resources.json $PRODUCT_NAME $OUTPUT_DIR
 
       echo "Tasks for the $PRODUCT_NAME are located in $OUTPUT_DIR/tasks/config-$PRODUCT_NAME"
