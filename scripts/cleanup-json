@@ -13,18 +13,35 @@ source "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"/.init.sh
 #   {string} PRODUCT_NAME The name of the product whose JSON is being cleaned up
 ##
 
+## Variables
+
+INPUT="$1"
+PRODUCT_NAME="$2"
+
+DELETE=(type optional credential guid options configurable)
+JSON=#$(cat "$INPUT")
+OUTPUT=#"$OUTPUT_DIR"/modified/"$PRODUCT_NAME".json
+
+# Default PRODUCT_NAME
+if [ -z "$PRODUCT_NAME" ]; then
+  PRODUCT_NAME="$(basename "$INPUT" .json)"
+fi
+
 ## Validation
 
 if [ ! -r "$INPUT" ]; then
   ERR_CODE=4 error "Provided input file $INPUT does not exist or is not readable."
 fi
 
-## Variables
-
-declare -a DELETE=(type optional credential guid options configurable)
-declare JSON=$(cat "$INPUT")
+if [ ! -d "$OUTPUT_DIR/modified" ]; then
+  log "Creating directory: $OUTPUT_DIR/modified"
+  mkdir -p "$OUTPUT_DIR/modified"
+fi
 
 ## Main
+
+JSON="$( cat "$INPUT" )"
+OUTPUT="$OUTPUT_DIR/modified/$PRODUCT_NAME.json"
 
 log "Deleting non configurable properties"
 for KEY in $(echo "$JSON" | "$JQ_CMD" -r '.[] | keys[]' | sed "s/,/ /g"); do
@@ -41,11 +58,11 @@ for key in "${DELETE[@]}"; do
     lib::walk(if type == "object" then del(.[$key]) else . end)')
 done
 
-echo "$JSON" | "$JQ_CMD" '.[]' > "$OUTPUT"/"$PRODUCT_NAME"-modified.json
+echo "$JSON" | "$JQ_CMD" '.[]' > "$OUTPUT"
 
 
-echo "Wrote output to $OUTPUT/$PRODUCT_NAME-modified.json"
+echo "Wrote output to $OUTPUT"
 
 ## Cleanup
 
-unset __DIR__ DELETE JSON
+unset DELETE JSON OUTPUT

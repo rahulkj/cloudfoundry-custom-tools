@@ -13,20 +13,13 @@ source "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"/.init.sh
 #   {string} PRODUCT_NAME The name of the product whose JSON is being cleaned up
 ##
 
-## Validation
-
-if [ ! -d "$INPUT" ]; then
-  ERR_CODE=4 error "Provided input directory $INPUT does not exist."
-fi
-
-declare OUTFILE="$OUTPUT/$PRODUCT_NAME.sh"
-if [ -f "$OUTFILE" ]; then
-  log "Removing existing file: $OUTFILE"
-  rm -f "$OUTFILE"
-fi
-touch "$OUTFILE"
-
 ## Variables
+
+PROPERTIES_FILE="$1"
+RESOURCES_FILE="$2"
+PRODUCT_NAME="$3"
+
+COMMON_VARIABLES=("OPS_MGR_HOST" "OPS_MGR_USR" "OPS_MGR_PWD" "NETWORK_NAME" "OTHER_AZS" "SINGLETON_JOBS_AZ" "PRODUCT_NAME")
 
 val='{"value": "$\(.key | split(".") | .[-1])"}'
 CONVERT_SCRIPT="
@@ -38,47 +31,104 @@ map(
 ) |
 from_entries"
 
+## Validation
+
+if [ ! -r "$PROPERTIES_FILE" ]; then
+  ERR_CODE=4 error "Provided properties file $PROPERTIES_FILE does not exist."
+fi
+
+if [ ! -r "$RESOURCES_FILE" ]; then
+  ERR_CODE=4 error "Provided resources file $RESOURCES_FILE does not exist."
+fi
+
+if [ ! -d "$OUTPUT_DIR/tasks/config-$PRODUCT_NAME" ]; then
+  log "Creating directory: $OUTPUT_DIR/tasks/config-$PRODUCT_NAME"
+  mkdir -p "$OUTPUT_DIR/tasks/config-$PRODUCT_NAME"
+fi
+
+OUTFILE="$OUTPUT_DIR/tasks/config-$PRODUCT_NAME/task.sh"
+if [ -f "$OUTFILE" ]; then
+  log "Removing existing file: $OUTFILE"
+  rm -f "$OUTFILE"
+fi
+touch "$OUTFILE"
+
+OUTFILE_YML="$OUTPUT_DIR/tasks/config-$PRODUCT_NAME/task.yml"
+if [ -f "$OUTFILE_YML" ]; then
+  log "Removing existing file: $OUTFILE_YML"
+  rm -f "$OUTFILE_YML"
+fi
+touch "$OUTFILE_YML"
+
 ## Main
+
+# SH File
 
 log "Writing shabang line"
 echo -e "#!/bin/bash\n" >> "$OUTFILE"
+
+# YAML File
+
+log "Writing image_resource"
+echo "---" >> "$OUTFILE_YML"
+echo -e '\n' >> "$OUTFILE_YML"
+echo "platform: linux" >> "$OUTFILE_YML"
+echo -e '\n' >> "$OUTFILE_YML"
+echo "image_resource:" >> "$OUTFILE_YML"
+echo "  type: docker-image" >> "$OUTFILE_YML"
+echo "  source: {repository: rjain/buildbox}" >> "$OUTFILE_YML"
+echo -e '\n' >> "$OUTFILE_YML"
+echo "params:" >> "$OUTFILE_YML"
+
+log "Writing common variables"
+for variable in ${COMMON_VARIABLES[@]}; do
+  echo "  $variable:" >> "$OUTFILE_YML"
+done
 
 ## Properties
 
 log "Writing properties_config"
 echo 'properties_config=$(jq -n \' >> "$OUTFILE"
 
-FILE="$INPUT/properties.json"
-
 ARGS=
-KEYS=$(cat "$FILE" | "$JQ_CMD" -r 'keys[] | split(".") | .[-1]')
-JSON=$(cat "$FILE" | "$JQ_CMD" "$CONVERT_SCRIPT" | sed 's/\"\(\$.*\)\"/\1/g')
+KEYS=$(cat "$PROPERTIES_FILE" | $JQ_CMD -r 'keys[] | split(".") | .[-1]')
+JSON=$(cat "$PROPERTIES_FILE" | $JQ_CMD "$CONVERT_SCRIPT" | sed 's/\"\(\$.*\)\"/\1/g')
 
 for key in $KEYS; do
   echo "  --arg $key \$$(echo $key | awk '{print toupper($0)}') \\" >> "$OUTFILE"
+  echo "  $(echo $key | awk '{print toupper($0)}'):" >> "$OUTFILE_YML"
 done
 
 echo "'$JSON'" >> "$OUTFILE"
 
 echo -e ')\n' >> "$OUTFILE"
 
+echo -e '\n' >> "$OUTFILE_YML"
+echo "inputs:" >> "$OUTFILE_YML"
+echo "  - name: pipelines-repo" >> "$OUTFILE_YML"
+echo "  - name: om-cli" >> "$OUTFILE_YML"
+echo "  - name: $JQ_CMD" >> "$OUTFILE_YML"
+echo -e '\n' >> "$OUTFILE_YML"
+echo "run:" >> "$OUTFILE_YML"
+echo "  path: pipelines-repo/tasks/config-$PRODUCT_NAME/task.sh" >> "$OUTFILE_YML"
 
 ## Resources
-
-FILE="$INPUT/resources.json"
 
 log "Writing resources_config"
 echo 'resources_config="{' >> "$OUTFILE"
 
-KEYS=$(cat "$FILE" | "$JQ_CMD" -r '.resources | .[] | .identifier' )
-j=$(cat $FILE | "$JQ_CMD" '.resources | length')
-i=0
+KEYS=$(cat "$RESOURCES_FILE" | $JQ_CMD -r '.resources | .[] | .identifier' )
+j=$(cat $RESOURCES_FILE | $JQ_CMD '.resources | length')
+
+i=1
 for key in $KEYS; do
   echo -n "  \\\"$key\\\": {\\\"instances\\\": \$$(echo $key | sed 's/-/_/g' | awk '{print toupper($0)}')_INSTANCES}" >> "$OUTFILE"
 
   if [ $((i)) -ne $((j)) ]; then
       echo -n "," >> "$OUTFILE"
   fi
+
+  i=$((i+1))
 
   echo >> "$OUTFILE"
 done
@@ -124,8 +174,8 @@ echo '  --product-properties "$properties_config" \' >> "$OUTFILE"
 echo '  --product-network "$network_config" \' >> "$OUTFILE"
 echo '  --product-resources "$resources_config"' >> "$OUTFILE"
 
-log "Wrote output to $OUTFILE"
+echo "Wrote output to $( dirname "$OUTFILE" )"
 
 ## Cleanup
 
-unset OUTFILE FILE CONVERT_SCRIPT
+unset OUTFILE OUTFILE_YML PRODUCT_NAME CONVERT_SCRIPT COMMON_VARIABLES

@@ -2,6 +2,8 @@
 
 set -e
 
+source "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"/../env
+
 ###
 # Gets the real directory for a script
 ##
@@ -17,19 +19,12 @@ __DIR__() {
 #   To import this file, add
 #       `source "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"/$RELATIVE_PATH/.init.sh`
 #     where `RELATIVE_PATH` is the relative path to this file from the file importing it
-#
-# Parameters:
-#   {string} INPUT        The JSON file to cleanup
-#   {string} PRODUCT_NAME The name of the product whose JSON is being cleaned up
 ##
 
-declare INPUT=
-declare OUTPUT=${OUTPUT_DIR:-manifests}
-declare PRODUCT_NAME=
-declare LOGFILE=${LOGFILE:-/dev/null}
-declare JQ_CMD=${JQ_CMD:-jq}
+LOGFILE=${LOGFILE:-/dev/null}
+JQ_CMD=${JQ_CMD:-jq}
 
-declare -a DEPENDENCIES=(JQ_CMD)
+DEPENDENCIES=(JQ_CMD)
 
 ###
 # Collects the arguments
@@ -53,13 +48,6 @@ collect_args() {
   done
 
   shift $(($OPTIND - 1))
-
-  INPUT="$1"
-  PRODUCT_NAME="$2"
-
-  if [ -z "$PRODUCT_NAME" ]; then
-    PRODUCT_NAME="$(basename "$INPUT" .json)"
-  fi
 }
 
 ###
@@ -87,14 +75,13 @@ collect_args $@
 
 ## Validation
 
-# Require input
-if [ -z "$INPUT" ]; then
-  ERR_CODE=2 error "Missing required input"
+if [ -z "$OUTPUT_DIR" ]; then
+  ERR_CODE=2 error "Missing needed OUTPUT_DIR"
 fi
 
 # Create the OUTPUT directory if not present
-if [ ! -d "$OUTPUT" ]; then
-  log "Creating directory $OUTPUT"
+if [ ! -d "$OUTPUT_DIR" ]; then
+  log "Creating directory $OUTPUT_DIR"
   mkdir -p "$OUTPUT"
 fi
 
@@ -111,10 +98,6 @@ done
 
 unset DEPENDENCIES
 
-export INPUT \
-  OUTPUT \
-  PRODUCT_NAME \
-  LOGFILE
 export -f log \
   error \
   __DIR__
