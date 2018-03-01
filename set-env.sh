@@ -1,6 +1,6 @@
 #!/bin/bash
 
-declare __DIR__="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+declare __BASEDIR__="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 ###
 # Description:
@@ -22,7 +22,7 @@ declare __DIR__="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 EXAMPLE_FILE=env
 ENV_FILE=${ENV_FILE:-.env.local}
 
-if [ ! -f "$__DIR__"/"$ENV_FILE" ]; then
+if [ ! -f "$__BASEDIR__"/"$ENV_FILE" ]; then
   echo "No env file present.  Please fix this issue by: " 1>&2
   echo "  1 ) Copying the $EXAMPLE_FILE to $ENV_FILE" 1>&2
   echo " OR" 1>&2
@@ -30,4 +30,4 @@ if [ ! -f "$__DIR__"/"$ENV_FILE" ]; then
   exit 2
 fi
 
-source "$__DIR__"/"$ENV_FILE"
+source "$__BASEDIR__"/"$ENV_FILE"

@@ -5,17 +5,31 @@ RESOURCES_FILE=$2
 PRODUCT_NAME=$3
 OUTPUT_DIR=$4
 
+COMMON_VARIABLES=("OPS_MGR_HOST" "OPS_MGR_USR" "OPS_MGR_PWD" "NETWORK_NAME" "OTHER_AZS" "SINGLETON_JOBS_AZ" "PRODUCT_NAME")
+
 if [ ! -d "$OUTPUT_DIR/tasks/config-$PRODUCT_NAME" ]; then
     mkdir -p "$OUTPUT_DIR/tasks/config-$PRODUCT_NAME"
 fi
 
 OUTFILE="$OUTPUT_DIR/tasks/config-$PRODUCT_NAME/task.sh"
-
-if [ -f "$OUTFILE" ]; then
-    rm -f "$OUTFILE"
-fi
+OUTFILE_YML="$OUTPUT_DIR/tasks/config-$PRODUCT_NAME/task.yml"
 
 touch "$OUTFILE"
+touch "$OUTFILE_YML"
+
+echo "---" >> "$OUTFILE_YML"
+echo -e '\n' >> "$OUTFILE_YML"
+echo "platform: linux" >> "$OUTFILE_YML"
+echo -e '\n' >> "$OUTFILE_YML"
+echo "image_resource:" >> "$OUTFILE_YML"
+echo "  type: docker-image" >> "$OUTFILE_YML"
+echo "  source: {repository: rjain/buildbox}" >> "$OUTFILE_YML"
+echo -e '\n' >> "$OUTFILE_YML"
+echo "params:" >> "$OUTFILE_YML"
+
+for variable in ${COMMON_VARIABLES[@]}; do
+  echo "  $variable:" >> "$OUTFILE_YML"
+done
 
 echo -e "#!/bin/bash\n\n" >> "$OUTFILE"
 
@@ -35,31 +49,43 @@ from_entries
 EOF
 
 ARGS=
-KEYS=$(cat "$PROPERTIES_FILE" | jq -r 'keys[] | split(".") | .[-1]')
-JSON=$(cat "$PROPERTIES_FILE" | jq "$CONVERT_SCRIPT" | sed 's/\"\(\$.*\)\"/\1/g')
+KEYS=$(cat "$PROPERTIES_FILE" | $JQ_CMD -r 'keys[] | split(".") | .[-1]')
+JSON=$(cat "$PROPERTIES_FILE" | $JQ_CMD "$CONVERT_SCRIPT" | sed 's/\"\(\$.*\)\"/\1/g')
 
 for key in $KEYS; do
   echo "  --arg $key \$$(echo $key | awk '{print toupper($0)}') \\" >> "$OUTFILE"
+  echo "  $(echo $key | awk '{print toupper($0)}'):" >> "$OUTFILE_YML"
 done
 
 echo "'$JSON'" >> "$OUTFILE"
 
 echo -e ')\n\n' >> "$OUTFILE"
 
+echo -e '\n' >> "$OUTFILE_YML"
+echo "inputs:" >> "$OUTFILE_YML"
+echo "  - name: pipelines-repo" >> "$OUTFILE_YML"
+echo "  - name: om-cli" >> "$OUTFILE_YML"
+echo "  - name: $JQ_CMD" >> "$OUTFILE_YML"
+echo -e '\n' >> "$OUTFILE_YML"
+echo "run:" >> "$OUTFILE_YML"
+echo "  path: pipelines-repo/tasks/config-$PRODUCT_NAME/task.sh" >> "$OUTFILE_YML"
 
 ## Resources
 
 echo 'resources_config="{' >> "$OUTFILE"
 
-KEYS=$(cat "$RESOURCES_FILE" | jq -r '.resources | .[] | .identifier' )
-j=$(cat $RESOURCES_FILE | jq '.resources | length')
-i=0
+KEYS=$(cat "$RESOURCES_FILE" | $JQ_CMD -r '.resources | .[] | .identifier' )
+j=$(cat $RESOURCES_FILE | $JQ_CMD '.resources | length')
+
+i=1
 for key in $KEYS; do
   echo -n "  \\\"$key\\\": {\\\"instances\\\": \$$(echo $key | sed 's/-/_/g' | awk '{print toupper($0)}')_INSTANCES}" >> "$OUTFILE"
 
   if [ $((i)) -ne $((j)) ]; then
       echo -n "," >> "$OUTFILE"
   fi
+
+  i=$((i+1))
 
   echo >> "$OUTFILE"
 done
@@ -71,8 +97,8 @@ echo -e '}"\n\n' >> "$OUTFILE"
 
 echo 'network_config=$(jq -n \' >> "$OUTFILE"
 echo '  --arg network_name "$NETWORK_NAME" \ ' >> "$OUTFILE"
-echo '  --arg other_azs "$SERVICES_NW_AZS" \ ' >> "$OUTFILE"
-echo '  --arg singleton_az "$SERVICE_SINGLETON_JOB_AZ" \ ' >> "$OUTFILE"
+echo '  --arg other_azs "$OTHER_AZS" \ ' >> "$OUTFILE"
+echo '  --arg singleton_az "$SINGLETON_JOBS_AZ" \ ' >> "$OUTFILE"
 echo "'" >> "$OUTFILE"
 echo '  {' >> "$OUTFILE"
 echo '    "network": {' >> "$OUTFILE"
