@@ -22,9 +22,7 @@ __DIR__() {
 ##
 
 LOGFILE=${LOGFILE:-/dev/null}
-JQ_CMD=${JQ_CMD:-jq}
-
-DEPENDENCIES=(JQ_CMD)
+CURL_CMD="$OM_CMD -k -t '$OPS_MGR_HOST' -u '$OPS_MGR_USR' -p '$OPS_MGR_PWD' -s"
 
 ###
 # Collects the arguments
@@ -71,6 +69,21 @@ error() {
   exit ${ERR_CODE:-255}
 }
 
+###
+# Checks that a dependency does exist
+#
+# @param {*} args A list of dependencies to be available
+##
+dependency() {
+  for dep in "$@"; do
+    if hash "$dep"; then
+      log "Validated the \`$dep\` dependency exists"
+    else
+      ERR_CODE=3 error "Missing required dependency: $dep"
+    fi
+  done
+}
+
 collect_args $@
 
 ## Validation
@@ -84,19 +97,6 @@ if [ ! -d "$OUTPUT_DIR" ]; then
   log "Creating directory $OUTPUT_DIR"
   mkdir -p "$OUTPUT"
 fi
-
-#
-
-log "Checking dependencies"
-for dep in ${DEPENDENCIES[@]}; do
-  log "Variable $dep was set to command ${!dep}"
-  if ! hash "${!dep}"; then
-    ERR_CODE=3 error "Missing required dependency: ${!dep}.  You can set the $dep environment variable to change the location of this executable"
-  fi
-done
-
-
-unset DEPENDENCIES
 
 export -f log \
   error \

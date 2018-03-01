@@ -13,6 +13,8 @@ source "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"/.init.sh
 #   {string} PRODUCT_NAME The name of the product whose JSON is being cleaned up
 ##
 
+dependency $JQ_CMD
+
 ## Variables
 
 PROPERTIES_FILE="$1"

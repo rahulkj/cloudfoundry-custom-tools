@@ -13,24 +13,27 @@ source "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"/.init.sh
 #   {string} PRODUCT_NAME The name of the product whose JSON is being cleaned up
 ##
 
+dependency $JQ_CMD
+
 ## Variables
 
 INPUT="$1"
 PRODUCT_NAME="$2"
 
 DELETE=(type optional credential guid options configurable)
-JSON=#$(cat "$INPUT")
-OUTPUT=#"$OUTPUT_DIR"/modified/"$PRODUCT_NAME".json
+JSON= #$(cat "$INPUT")
+OUTPUT= #"$OUTPUT_DIR"/modified/"$PRODUCT_NAME".json
 
-# Default PRODUCT_NAME
-if [ -z "$PRODUCT_NAME" ]; then
-  PRODUCT_NAME="$(basename "$INPUT" .json)"
-fi
 
 ## Validation
 
 if [ ! -r "$INPUT" ]; then
   ERR_CODE=4 error "Provided input file $INPUT does not exist or is not readable."
+fi
+
+if [ -z "$PRODUCT_NAME" ]; then
+  log "Using basename to determine PRODUCT_NAME"
+  PRODUCT_NAME="$(basename "$INPUT" .json)"
 fi
 
 if [ ! -d "$OUTPUT_DIR/modified" ]; then
@@ -40,7 +43,7 @@ fi
 
 ## Main
 
-JSON="$( cat "$INPUT" )"
+JSON="$(cat "$INPUT")"
 OUTPUT="$OUTPUT_DIR/modified/$PRODUCT_NAME.json"
 
 log "Deleting non configurable properties"
