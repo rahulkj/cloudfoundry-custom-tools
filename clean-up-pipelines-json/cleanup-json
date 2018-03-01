@@ -1,9 +1,10 @@
 #!/bin/bash
 
+source $CURRENT_PWD/env
+
 PROPERTIES_FILE=$1
-RESOURCES_FILE=$2
-PRODUCT_NAME=$3
-OUTPUT_DIR=$4
+PRODUCT_NAME=$2
+OUTPUT_DIR=$3
 
 if [ ! -d "$OUTPUT_DIR/modified" ]; then
     mkdir -p $OUTPUT_DIR/modified
@@ -14,35 +15,33 @@ if [[ -z "$PROPERTIES_FILE" ]]; then
   exit 1
 fi
 
-UPDATED_JSON=$(cat $PROPERTIES_FILE | jq -L $PWD 'import "library" as lib;
+UPDATED_JSON=$(cat $PROPERTIES_FILE | $JQ_CMD -L $PWD 'import "library" as lib;
    lib::walk(if type == "object" then del(.type) else . end)')
 
-UPDATED_JSON=$(echo "$UPDATED_JSON" | jq -L $PWD 'import "library" as lib;
+UPDATED_JSON=$(echo "$UPDATED_JSON" | $JQ_CMD -L $PWD 'import "library" as lib;
    lib::walk(if type == "object" then del(.optional) else . end)')
 
-UPDATED_JSON=$(echo "$UPDATED_JSON" | jq -L $PWD 'import "library" as lib;
+UPDATED_JSON=$(echo "$UPDATED_JSON" | $JQ_CMD -L $PWD 'import "library" as lib;
   lib::walk(if type == "object" then del(.credential) else . end)')
 
-UPDATED_JSON=$(echo "$UPDATED_JSON" | jq -L $PWD 'import "library" as lib;
+UPDATED_JSON=$(echo "$UPDATED_JSON" | $JQ_CMD -L $PWD 'import "library" as lib;
   lib::walk(if type == "object" then del(.guid) else . end)')
 
-UPDATED_JSON=$(echo "$UPDATED_JSON" | jq -L $PWD 'import "library" as lib;
+UPDATED_JSON=$(echo "$UPDATED_JSON" | $JQ_CMD -L $PWD 'import "library" as lib;
   lib::walk(if type == "object" then del(.options) else . end)')
 
-KEYS=$(echo "$UPDATED_JSON" | jq -r '.[] | keys[]')
+KEYS=$(echo "$UPDATED_JSON" | $JQ_CMD -r '.[] | keys[]')
 
 for i in $(echo $KEYS | sed "s/,/ /g")
 do
     KEY=$(echo $i)
-    IS_NON_CONFIGURABLE=$(echo "$UPDATED_JSON" | jq --arg "key" "$KEY" '.properties[$key] | select(.configurable==false)')
+    IS_NON_CONFIGURABLE=$(echo "$UPDATED_JSON" | $JQ_CMD --arg "key" "$KEY" '.properties[$key] | select(.configurable==false)')
     if [[ ! -z "$IS_NON_CONFIGURABLE" ]]; then
-      UPDATED_JSON=$(echo "$UPDATED_JSON" | jq --arg "key" "$KEY" 'del(.properties[$key])')
+      UPDATED_JSON=$(echo "$UPDATED_JSON" | $JQ_CMD --arg "key" "$KEY" 'del(.properties[$key])')
     fi
 done
 
-UPDATED_JSON=$(echo "$UPDATED_JSON" | jq -L $PWD 'import "library" as lib;
+UPDATED_JSON=$(echo "$UPDATED_JSON" | $JQ_CMD -L $PWD 'import "library" as lib;
   lib::walk(if type == "object" then del(.configurable) else . end)')
 
-echo "$UPDATED_JSON" | jq '.[]' > $OUTPUT_DIR/modified/$PRODUCT_NAME.json
-
-./convert-json $OUTPUT_DIR/modified/$PRODUCT_NAME.json $RESOURCES_FILE $PRODUCT_NAME $OUTPUT_DIR
+echo "$UPDATED_JSON" | $JQ_CMD '.[]' > $OUTPUT_DIR/modified/$PRODUCT_NAME.json
