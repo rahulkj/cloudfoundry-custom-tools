@@ -1,42 +1,58 @@
 #!/bin/bash
 
-PROPERTIES_FILE=$1
-RESOURCES_FILE=$2
-PRODUCT_NAME=$3
-OUTPUT_DIR=$4
+set -e
 
-if [ ! -d "$OUTPUT_DIR/tasks/config-$PRODUCT_NAME" ]; then
-    mkdir -p "$OUTPUT_DIR/tasks/config-$PRODUCT_NAME"
+source "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"/.init.sh
+
+###
+# Converts a directory consisting of a properties file and a resource file into
+#   a `task.sh` script.
+#
+# Parameters:
+#   {string} INPUT        The JSON file to cleanup
+#   {string} PRODUCT_NAME The name of the product whose JSON is being cleaned up
+##
+
+## Validation
+
+if [ ! -d "$INPUT" ]; then
+  ERR_CODE=4 error "Provided input directory $INPUT does not exist."
 fi
 
-OUTFILE="$OUTPUT_DIR/tasks/config-$PRODUCT_NAME/task.sh"
-
+declare OUTFILE="$OUTPUT/$PRODUCT_NAME.sh"
 if [ -f "$OUTFILE" ]; then
-    rm -f "$OUTFILE"
+  log "Removing existing file: $OUTFILE"
+  rm -f "$OUTFILE"
 fi
-
 touch "$OUTFILE"
 
-echo -e "#!/bin/bash\n\n" >> "$OUTFILE"
+## Variables
+
+val='{"value": "$\(.key | split(".") | .[-1])"}'
+CONVERT_SCRIPT="
+to_entries |
+map(
+  if (.value.value | type) == \"object\"
+  then . + {\"value\": {\"secret\": $val}}
+  else . + {\"value\": $val} end
+) |
+from_entries"
+
+## Main
+
+log "Writing shabang line"
+echo -e "#!/bin/bash\n" >> "$OUTFILE"
 
 ## Properties
 
+log "Writing properties_config"
 echo 'properties_config=$(jq -n \' >> "$OUTFILE"
 
-val='{"value": "$\(.key | split(".") | .[-1])"}'
-IFS='' read -r -d '' CONVERT_SCRIPT << EOF
-to_entries |
-map(
-    if (.value.value | type) == "object"
-    then . + {"value": {"secret": $val}}
-    else . + {"value": $val} end
-) |
-from_entries
-EOF
+FILE="$INPUT/properties.json"
 
 ARGS=
-KEYS=$(cat "$PROPERTIES_FILE" | jq -r 'keys[] | split(".") | .[-1]')
-JSON=$(cat "$PROPERTIES_FILE" | jq "$CONVERT_SCRIPT" | sed 's/\"\(\$.*\)\"/\1/g')
+KEYS=$(cat "$FILE" | "$JQ_CMD" -r 'keys[] | split(".") | .[-1]')
+JSON=$(cat "$FILE" | "$JQ_CMD" "$CONVERT_SCRIPT" | sed 's/\"\(\$.*\)\"/\1/g')
 
 for key in $KEYS; do
   echo "  --arg $key \$$(echo $key | awk '{print toupper($0)}') \\" >> "$OUTFILE"
@@ -44,15 +60,18 @@ done
 
 echo "'$JSON'" >> "$OUTFILE"
 
-echo -e ')\n\n' >> "$OUTFILE"
+echo -e ')\n' >> "$OUTFILE"
 
 
 ## Resources
 
+FILE="$INPUT/resources.json"
+
+log "Writing resources_config"
 echo 'resources_config="{' >> "$OUTFILE"
 
-KEYS=$(cat "$RESOURCES_FILE" | jq -r '.resources | .[] | .identifier' )
-j=$(cat $RESOURCES_FILE | jq '.resources | length')
+KEYS=$(cat "$FILE" | "$JQ_CMD" -r '.resources | .[] | .identifier' )
+j=$(cat $FILE | "$JQ_CMD" '.resources | length')
 i=0
 for key in $KEYS; do
   echo -n "  \\\"$key\\\": {\\\"instances\\\": \$$(echo $key | sed 's/-/_/g' | awk '{print toupper($0)}')_INSTANCES}" >> "$OUTFILE"
@@ -65,14 +84,16 @@ for key in $KEYS; do
 done
 unset i j
 
-echo -e '}"\n\n' >> "$OUTFILE"
+echo -e '}"\n' >> "$OUTFILE"
 
 ## Network
 
+log "Writing network_config"
 echo 'network_config=$(jq -n \' >> "$OUTFILE"
 echo '  --arg network_name "$NETWORK_NAME" \ ' >> "$OUTFILE"
-echo '  --arg other_azs "$SERVICES_NW_AZS" \ ' >> "$OUTFILE"
-echo '  --arg singleton_az "$SERVICE_SINGLETON_JOB_AZ" \ ' >> "$OUTFILE"
+echo '  --arg other_azs "$OTHER_AZS" \ ' >> "$OUTFILE"
+echo '  --arg singleton_az "$SINGLETON_JOBS_AZ" \ ' >> "$OUTFILE"
+echo '  --arg services_network_name "$SERVICES_NETWORK_NAME" \ ' >> "$OUTFILE"
 echo "'" >> "$OUTFILE"
 echo '  {' >> "$OUTFILE"
 echo '    "network": {' >> "$OUTFILE"
@@ -81,13 +102,17 @@ echo '    },' >> "$OUTFILE"
 echo '    "other_availability_zones": ($other_azs | split(",") | map({name: .})),' >> "$OUTFILE"
 echo '    "singleton_availability_zone": {' >> "$OUTFILE"
 echo '      "name": $singleton_az' >> "$OUTFILE"
+echo '    },' >> "$OUTFILE"
+echo '    "service_network": {' >> "$OUTFILE"
+echo '      "name": $services_network_name' >> "$OUTFILE"
 echo '    }' >> "$OUTFILE"
 echo '  }' >> "$OUTFILE"
 echo "'" >> "$OUTFILE"
-echo -e ')\n\n' >> "$OUTFILE"
+echo -e ')\n' >> "$OUTFILE"
 
 ## Run
 
+log "Writing om-linux command"
 echo 'om-linux \' >> "$OUTFILE"
 echo '  --target https://$OPSMAN_DOMAIN_OR_IP_ADDRESS \' >> "$OUTFILE"
 echo '  --username "$OPS_MGR_USR" \' >> "$OUTFILE"
@@ -98,3 +123,9 @@ echo "  --product-name $PRODUCT_NAME \\" >> "$OUTFILE"
 echo '  --product-properties "$properties_config" \' >> "$OUTFILE"
 echo '  --product-network "$network_config" \' >> "$OUTFILE"
 echo '  --product-resources "$resources_config"' >> "$OUTFILE"
+
+log "Wrote output to $OUTFILE"
+
+## Cleanup
+
+unset OUTFILE FILE CONVERT_SCRIPT

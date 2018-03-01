@@ -1,48 +1,51 @@
 #!/bin/bash
 
-PROPERTIES_FILE=$1
-RESOURCES_FILE=$2
-PRODUCT_NAME=$3
-OUTPUT_DIR=$4
+set -e
 
-if [ ! -d "$OUTPUT_DIR/modified" ]; then
-    mkdir -p $OUTPUT_DIR/modified
+source "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"/.init.sh
+
+###
+# Cleanups JSON from the `/api/v0/stage/:product_name/properties` endpoint into
+#   JSON for importing to the `task.sh` file.
+#
+# Parameters:
+#   {string} INPUT        The JSON file to cleanup
+#   {string} PRODUCT_NAME The name of the product whose JSON is being cleaned up
+##
+
+## Validation
+
+if [ ! -r "$INPUT" ]; then
+  ERR_CODE=4 error "Provided input file $INPUT does not exist or is not readable."
 fi
 
-if [[ -z "$PROPERTIES_FILE" ]]; then
-  echo "Provided file $PROPERTIES_FILE does not exist."
-  exit 1
-fi
+## Variables
 
-UPDATED_JSON=$(cat $PROPERTIES_FILE | jq -L $PWD 'import "library" as lib;
-   lib::walk(if type == "object" then del(.type) else . end)')
+declare -a DELETE=(type optional credential guid options configurable)
+declare JSON=$(cat "$INPUT")
 
-UPDATED_JSON=$(echo "$UPDATED_JSON" | jq -L $PWD 'import "library" as lib;
-   lib::walk(if type == "object" then del(.optional) else . end)')
+## Main
 
-UPDATED_JSON=$(echo "$UPDATED_JSON" | jq -L $PWD 'import "library" as lib;
-  lib::walk(if type == "object" then del(.credential) else . end)')
-
-UPDATED_JSON=$(echo "$UPDATED_JSON" | jq -L $PWD 'import "library" as lib;
-  lib::walk(if type == "object" then del(.guid) else . end)')
-
-UPDATED_JSON=$(echo "$UPDATED_JSON" | jq -L $PWD 'import "library" as lib;
-  lib::walk(if type == "object" then del(.options) else . end)')
-
-KEYS=$(echo "$UPDATED_JSON" | jq -r '.[] | keys[]')
-
-for i in $(echo $KEYS | sed "s/,/ /g")
-do
-    KEY=$(echo $i)
-    IS_NON_CONFIGURABLE=$(echo "$UPDATED_JSON" | jq --arg "key" "$KEY" '.properties[$key] | select(.configurable==false)')
-    if [[ ! -z "$IS_NON_CONFIGURABLE" ]]; then
-      UPDATED_JSON=$(echo "$UPDATED_JSON" | jq --arg "key" "$KEY" 'del(.properties[$key])')
-    fi
+log "Deleting non configurable properties"
+for KEY in $(echo "$JSON" | "$JQ_CMD" -r '.[] | keys[]' | sed "s/,/ /g"); do
+  IS_NON_CONFIGURABLE=$(echo "$JSON" | "$JQ_CMD" --arg "key" "$KEY" '.properties[$key] | select(.configurable==false)')
+  if [ ! -z "$IS_NON_CONFIGURABLE" ]; then
+    JSON=$(echo "$JSON" | "$JQ_CMD" --arg "key" "$KEY" 'del(.properties[$key])')
+  fi
+  unset IS_NON_CONFIGURABLE
 done
 
-UPDATED_JSON=$(echo "$UPDATED_JSON" | jq -L $PWD 'import "library" as lib;
-  lib::walk(if type == "object" then del(.configurable) else . end)')
+log "Deleting keys: (${DELETE[@]}) from $INPUT"
+for key in "${DELETE[@]}"; do
+  JSON=$(echo "$JSON" | "$JQ_CMD" -L "$(__DIR__)" --arg 'key' "$key" 'import "library" as lib;
+    lib::walk(if type == "object" then del(.[$key]) else . end)')
+done
 
-echo "$UPDATED_JSON" | jq '.[]' > $OUTPUT_DIR/modified/$PRODUCT_NAME.json
+echo "$JSON" | "$JQ_CMD" '.[]' > "$OUTPUT"/"$PRODUCT_NAME"-modified.json
 
-./convert-json $OUTPUT_DIR/modified/$PRODUCT_NAME.json $RESOURCES_FILE $PRODUCT_NAME $OUTPUT_DIR
+
+echo "Wrote output to $OUTPUT/$PRODUCT_NAME-modified.json"
+
+## Cleanup
+
+unset __DIR__ DELETE JSON
