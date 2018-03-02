@@ -1,7 +1,5 @@
 #!/bin/bash -e
 
-source $PWD/env
-
 PROPERTIES_FILE=$1
 PRODUCT_NAME=$2
 OUTPUT_DIR=$3
