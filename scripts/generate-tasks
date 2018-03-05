@@ -37,7 +37,7 @@ echo -e "#!/bin/bash\n\n" >> "$OUTFILE"
 
 echo 'properties_config=$(jq -n \' >> "$OUTFILE"
 
-val='{"value": "$\(.key | split(".") | .[-1])"}'
+val='{"value": "$\( .key | split(".") | join("_") | sub("-"; "_") | ltrimstr("_") )"}'
 IFS='' read -r -d '' CONVERT_SCRIPT << EOF
 to_entries |
 map(
@@ -49,7 +49,7 @@ from_entries
 EOF
 
 ARGS=
-KEYS=$(cat "$PROPERTIES_FILE" | $JQ_CMD -r 'keys[] | split(".") | .[-1]')
+KEYS=$(cat "$PROPERTIES_FILE" | jq -r 'keys[] | split(".") | join("_") | sub("-"; "_") | ltrimstr("_")')
 JSON=$(cat "$PROPERTIES_FILE" | $JQ_CMD "$CONVERT_SCRIPT" | sed 's/\"\(\$.*\)\"/\1/g')
 
 for key in $KEYS; do
