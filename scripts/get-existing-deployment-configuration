@@ -9,7 +9,7 @@ INSTALLATION_NAMES=$(echo "$PRODUCTS_DEPLOYED" | $JQ_CMD -r '.[].installation_na
 
 echo "$INSTALLATION_NAMES" | while read INSTALLATION_NAME; do
   if [ "$INSTALLATION_NAME" != "p-bosh" ]; then
-    PRODUCT_RESOURCES=$($CURL_CMD -path /api/v0/staged/products/"$INSTALLATION_NAME"/resources -s)
+    PRODUCT_RESOURCES=$($CURL_CMD -path /api/v0/staged/products/"$INSTALLATION_NAME"/resources)
     PRODUCT_TYPE=$(echo "$PRODUCTS_DEPLOYED" | $JQ_CMD -r --arg installation_name "$INSTALLATION_NAME" '.[] | select(.installation_name | contains($installation_name)) | .type')
 
     echo "$PRODUCT_RESOURCES" > "$OUTPUT_DIR/$PRODUCT_TYPE-resources.json"

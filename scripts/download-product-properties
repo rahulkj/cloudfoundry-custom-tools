@@ -8,7 +8,7 @@ if [ ! -d "$OUTPUT_DIR/original" ]; then
   mkdir -p "$OUTPUT_DIR/original"
 fi
 
-PRODUCTS=$($CURL_CMD -p /api/v0/staged/products)
+PRODUCTS=$($CURL_CMD -path /api/v0/staged/products)
 
 PRODUCT_GUIDS=$(echo $PRODUCTS | $JQ_CMD -r '.[] | .guid')
 
@@ -20,10 +20,10 @@ do
     echo "--------------------------------------------------------------------------------------------"
     echo "Working on $PRODUCT_NAME"
 
-    PRODUCT_PROPERTIES=$($CURL_CMD -p /api/v0/staged/products/$PRODUCT_GUID/properties)
+    PRODUCT_PROPERTIES=$($CURL_CMD -path /api/v0/staged/products/$PRODUCT_GUID/properties)
     echo "$PRODUCT_PROPERTIES" > "$OUTPUT_DIR/original/$PRODUCT_NAME.json"
 
-    PRODUCT_RESOURCES=$($CURL_CMD -p /api/v0/staged/products/$PRODUCT_GUID/resources)
+    PRODUCT_RESOURCES=$($CURL_CMD -path /api/v0/staged/products/$PRODUCT_GUID/resources)
     echo "$PRODUCT_RESOURCES" > "$OUTPUT_DIR/original/$PRODUCT_NAME-resources.json"
     echo "--------------------------------------------------------------------------------------------"
   fi
