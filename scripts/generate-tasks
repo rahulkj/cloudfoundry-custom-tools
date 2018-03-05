@@ -37,13 +37,13 @@ echo -e "#!/bin/bash\n\n" >> "$OUTFILE"
 
 echo 'properties_config=$(jq -n \' >> "$OUTFILE"
 
-val='{"value": "$\(.key | split(".") | .[-1])"}'
+val='"$\(.key | split(".") | .[-1])"'
 IFS='' read -r -d '' CONVERT_SCRIPT << EOF
 to_entries |
 map(
     if (.value.value | type) == "object"
-    then . + {"value": {"secret": $val}}
-    else . + {"value": $val} end
+    then . + {"value": {"value": {"secret": $val}}}
+    else . + {"value": {"value": $val}} end
 ) |
 from_entries
 EOF
