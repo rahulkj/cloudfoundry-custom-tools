@@ -1,45 +1,71 @@
-#!/bin/bash -e
+#!/bin/bash
 
-PROPERTIES_FILE=$1
-PRODUCT_NAME=$2
-OUTPUT_DIR=$3
+set -e
+
+source "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"/.init.sh
+
+###
+# Cleanups JSON from the `/api/v0/stage/:product_name/properties` endpoint into
+#   JSON for importing to the `task.sh` file.
+#
+# Parameters:
+#   {string} INPUT        The JSON file to cleanup
+#   {string} PRODUCT_NAME The name of the product whose JSON is being cleaned up
+##
+
+dependency $JQ_CMD
+
+## Variables
+
+INPUT="$1"
+PRODUCT_NAME="$2"
+
+DELETE=(type optional credential guid options configurable)
+JSON= #$(cat "$INPUT")
+OUTPUT= #"$OUTPUT_DIR"/modified/"$PRODUCT_NAME".json
+
+
+## Validation
+
+if [ ! -r "$INPUT" ]; then
+  ERR_CODE=4 error "Provided input file $INPUT does not exist or is not readable."
+fi
+
+if [ -z "$PRODUCT_NAME" ]; then
+  log "Using basename to determine PRODUCT_NAME"
+  PRODUCT_NAME="$(basename "$INPUT" .json)"
+fi
 
 if [ ! -d "$OUTPUT_DIR/modified" ]; then
-    mkdir -p $OUTPUT_DIR/modified
+  log "Creating directory: $OUTPUT_DIR/modified"
+  mkdir -p "$OUTPUT_DIR/modified"
 fi
 
-if [[ -z "$PROPERTIES_FILE" ]]; then
-  echo "Provided file $PROPERTIES_FILE does not exist."
-  exit 1
-fi
+## Main
 
-UPDATED_JSON=$(cat $PROPERTIES_FILE | $JQ_CMD -L $PWD 'import "library" as lib;
-   lib::walk(if type == "object" then del(.type) else . end)')
+JSON="$(cat "$INPUT")"
+OUTPUT="$OUTPUT_DIR/modified/$PRODUCT_NAME.json"
 
-UPDATED_JSON=$(echo "$UPDATED_JSON" | $JQ_CMD -L $PWD 'import "library" as lib;
-   lib::walk(if type == "object" then del(.optional) else . end)')
-
-UPDATED_JSON=$(echo "$UPDATED_JSON" | $JQ_CMD -L $PWD 'import "library" as lib;
-  lib::walk(if type == "object" then del(.credential) else . end)')
-
-UPDATED_JSON=$(echo "$UPDATED_JSON" | $JQ_CMD -L $PWD 'import "library" as lib;
-  lib::walk(if type == "object" then del(.guid) else . end)')
-
-UPDATED_JSON=$(echo "$UPDATED_JSON" | $JQ_CMD -L $PWD 'import "library" as lib;
-  lib::walk(if type == "object" then del(.options) else . end)')
-
-KEYS=$(echo "$UPDATED_JSON" | $JQ_CMD -r '.[] | keys[]')
-
-for i in $(echo $KEYS | sed "s/,/ /g")
-do
-    KEY=$(echo $i)
-    IS_NON_CONFIGURABLE=$(echo "$UPDATED_JSON" | $JQ_CMD --arg "key" "$KEY" '.properties[$key] | select(.configurable==false)')
-    if [[ ! -z "$IS_NON_CONFIGURABLE" ]]; then
-      UPDATED_JSON=$(echo "$UPDATED_JSON" | $JQ_CMD --arg "key" "$KEY" 'del(.properties[$key])')
-    fi
+log "Deleting non configurable properties"
+for KEY in $(echo "$JSON" | "$JQ_CMD" -r '.[] | keys[]' | sed "s/,/ /g"); do
+  IS_NON_CONFIGURABLE=$(echo "$JSON" | "$JQ_CMD" --arg "key" "$KEY" '.properties[$key] | select(.configurable==false)')
+  if [ ! -z "$IS_NON_CONFIGURABLE" ]; then
+    JSON=$(echo "$JSON" | "$JQ_CMD" --arg "key" "$KEY" 'del(.properties[$key])')
+  fi
+  unset IS_NON_CONFIGURABLE
 done
 
-UPDATED_JSON=$(echo "$UPDATED_JSON" | $JQ_CMD -L $PWD 'import "library" as lib;
-  lib::walk(if type == "object" then del(.configurable) else . end)')
+log "Deleting keys: (${DELETE[@]}) from $INPUT"
+for key in "${DELETE[@]}"; do
+  JSON=$(echo "$JSON" | "$JQ_CMD" -L "$(__DIR__)" --arg 'key' "$key" 'import "library" as lib;
+    lib::walk(if type == "object" then del(.[$key]) else . end)')
+done
 
-echo "$UPDATED_JSON" | $JQ_CMD '.[]' > $OUTPUT_DIR/modified/$PRODUCT_NAME.json
+echo "$JSON" | "$JQ_CMD" '.[]' > "$OUTPUT"
+
+
+echo "Wrote output to $OUTPUT"
+
+## Cleanup
+
+unset DELETE JSON OUTPUT

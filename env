@@ -4,7 +4,8 @@ export OM_CMD=om
 # Download JQ CLI from - https://github.com/stedolan/jq/releases
 export JQ_CMD=jq
 
-export CURRENT_PWD=$PWD
+# TODO
+export CURRENT_PWD="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 #Ops Manager FQDN or IP
 OPS_MGR_HOST=
@@ -16,7 +17,7 @@ OPS_MGR_USR=admin
 OPS_MGR_PWD=
 
 #Path to the Output Directory
-OUTPUT_DIR=$CURRENT_PWD/../manifests
+OUTPUT_DIR=$CURRENT_PWD/manifests
 
 # Specify your cli names or path here
 

@@ -1,28 +1,30 @@
 #!/bin/bash -e
 
-source $PWD/env
+source "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"/.init.sh
+
+dependency $OM_CMD $JQ_CMD curl
 
 if [ ! -d "$OUTPUT_DIR/original" ]; then
-    mkdir -p "$OUTPUT_DIR/original"
+  mkdir -p "$OUTPUT_DIR/original"
 fi
 
-PRODUCTS=$($OM_CMD -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD -k curl -s -p /api/v0/staged/products)
+PRODUCTS=$($CURL_CMD -path /api/v0/staged/products)
 
 PRODUCT_GUIDS=$(echo $PRODUCTS | $JQ_CMD -r '.[] | .guid')
 
 for i in $(echo $PRODUCT_GUIDS)
 do
-    PRODUCT_GUID=$(echo $i)
-    PRODUCT_NAME=$(echo $PRODUCTS | $JQ_CMD -r --arg product_guid $i '.[] | select(.guid==$product_guid) | .type')
-    if [[ "$PRODUCT_NAME" != "p-bosh" ]]; then
-      echo "--------------------------------------------------------------------------------------------"
-      echo "Working on $PRODUCT_NAME"
-      PRODUCT_PROPERTIES=$($OM_CMD -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD -k curl -s -p /api/v0/staged/products/$PRODUCT_GUID/properties)
-      echo "$PRODUCT_PROPERTIES" > $OUTPUT_DIR/original/$PRODUCT_NAME.json
+  PRODUCT_GUID=$(echo $i)
+  PRODUCT_NAME=$(echo $PRODUCTS | $JQ_CMD -r --arg product_guid $i '.[] | select(.guid==$product_guid) |.type')
+  if [[ "$PRODUCT_NAME" != "p-bosh" ]]; then
+    echo "--------------------------------------------------------------------------------------------"
+    echo "Working on $PRODUCT_NAME"
 
-      PRODUCT_RESOURCES=$($OM_CMD -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD -k curl -s -p /api/v0/staged/products/$PRODUCT_GUID/resources)
-      echo "$PRODUCT_RESOURCES" > $OUTPUT_DIR/original/$PRODUCT_NAME-resources.json
-      echo "--------------------------------------------------------------------------------------------"
-      echo -e '\n'
-    fi
+    PRODUCT_PROPERTIES=$($CURL_CMD -path /api/v0/staged/products/$PRODUCT_GUID/properties)
+    echo "$PRODUCT_PROPERTIES" > "$OUTPUT_DIR/original/$PRODUCT_NAME.json"
+
+    PRODUCT_RESOURCES=$($CURL_CMD -path /api/v0/staged/products/$PRODUCT_GUID/resources)
+    echo "$PRODUCT_RESOURCES" > "$OUTPUT_DIR/original/$PRODUCT_NAME-resources.json"
+    echo "--------------------------------------------------------------------------------------------"
+  fi
 done

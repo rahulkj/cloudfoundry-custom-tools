@@ -13,7 +13,7 @@ To use this repository
 | Functionality | Script |
 | --- | --- |
 | Download product properties and resource configuration for all product tiles | ./scripts/download-product-properties
-| Curate the product properties to get the fields required for configuring the tile | ./scripts/cleanup-json PROPERTIES_FILE PRODUCT_NAME OUTPUT_DIR
+| Curate the product properties to get the fields required for configuring the tile | ./scripts/cleanup-json PROPERTIES_FILE PRODUCT_NAME
 | To generate `task.sh` and `task.yml` files for all the tiles staged on ops manager | ./scripts/generate-config-tasks
 | Download all the resource configuration for deployed products | ./scripts/get-existing-deployment-configuration
 | Update another site with the downloaded properties from the previous command | ./scripts/update-existing-deployment-configuration

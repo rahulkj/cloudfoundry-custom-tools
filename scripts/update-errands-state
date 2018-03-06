@@ -1,23 +1,19 @@
 #!/bin/bash -e
 
-source $PWD/env
-source $PWD/scripts/common
+source "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"/.init.sh
 
-validate_cli $OM_CMD
-validate_cli $JQ_CMD
-validate_cli curl
+dependency $OM_CMD $JQ_CMD curl
 
 format="\n| %-30s | %40s | %20s | %20s |\n"
 printf "$format" "DEPLOYMENT" "ERRAND" "ERRAND_STATE" "STATE"
 
-PRODUCTS_DEPLOYED=$($OM_CMD -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD curl -path /api/v0/deployed/products -s)
-
+PRODUCTS_DEPLOYED=$($CURL_CMD -path /api/v0/deployed/products)
 INSTALLATION_NAMES=$(echo "$PRODUCTS_DEPLOYED" | $JQ_CMD -r '.[].installation_name')
 
 echo "$INSTALLATION_NAMES" | while read INSTALLATION_NAME
 do
   if [[ "$INSTALLATION_NAME" != "p-bosh" ]]; then
-    ERRANDS_RESPONSE=$($OM_CMD -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD curl -path /api/v0/staged/products/$INSTALLATION_NAME/errands -s)
+    ERRANDS_RESPONSE=$($CURL_CMD -path /api/v0/staged/products/$INSTALLATION_NAME/errands)
     PRODUCT_TYPE=$(echo "$PRODUCTS_DEPLOYED" | $JQ_CMD -r --arg installation_name "$INSTALLATION_NAME" '.[] | select(.installation_name | contains($installation_name)) | .type')
 
     ERRANDS=$(echo "$ERRANDS_RESPONSE" | $JQ_CMD -r '.errands[] | .name')
@@ -43,7 +39,7 @@ do
         fi
 
         if [[ "$CURRENT_STATUS" != "$SMOKE_TEST_ERRAND_STATE" ]]; then
-          RESPONSE=$($OM_CMD -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD set-errand-state -p $PRODUCT_TYPE -e $ERRAND --post-deploy-state $SMOKE_TEST_ERRAND_STATE)
+          RESPONSE=$($OM_CMD -k -t "$OPS_MGR_HOST" -u "$OPS_MGR_USR" -p "$OPS_MGR_PWD" set-errand-state -p $PRODUCT_TYPE -e $ERRAND --post-deploy-state $SMOKE_TEST_ERRAND_STATE)
           printf "$format" "$PRODUCT_TYPE" "$ERRAND" "$SMOKE_TEST_ERRAND_STATE" "Changed"
         else
           printf "$format" "$PRODUCT_TYPE" "$ERRAND" "$CURRENT_STATUS" "Unchanged"

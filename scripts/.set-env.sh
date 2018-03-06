@@ -1,6 +1,6 @@
 #!/bin/bash
 
-declare __BASEDIR__="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+declare __BASEDIR__="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
 
 ###
 # Description:

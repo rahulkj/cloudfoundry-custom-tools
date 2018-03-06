@@ -1,33 +1,75 @@
 #!/bin/bash -e
 
-source $PWD/env
-source $PWD/scripts/common
+source "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"/.init.sh
 
-validate_cli $OM_CMD
-validate_cli $JQ_CMD
-validate_cli curl
+dependency $OM_CMD $JQ_CMD curl
 
-validate_directory_exists $OUTPUT_DIR false
-
-if [ ! -d "$OUTPUT_DIR" ]; then
-  echo "$OUTPUT_DIR with the resource configurations does not exist"
-  exit 1
-fi
-
-PRODUCTS_DEPLOYED=$($OM_CMD -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD curl -path /api/v0/deployed/products -s)
+PRODUCTS_DEPLOYED=$($CURL_CMD -path /api/v0/deployed/products)
 
 INSTALLATION_NAMES=$(echo "$PRODUCTS_DEPLOYED" | $JQ_CMD -r '.[].installation_name')
+
+function update_resource_configuration {
+  local RESOURCE=$1
+  local INSTANCE_TYPE=$2
+  local INSTANCES=$3
+  local PERSISTENT_DISK_SIZE_MB=$4
+  local PRODUCT_JOBS=$5
+  local PRODUCT_IDENTIFIER=$6
+
+  if [[ ! -z "$INSTANCES" ]]; then
+    DATA=$(
+      echo "{}" | $JQ_CMD -n \
+        --arg INSTANCE_TYPE "$INSTANCE_TYPE" \
+        --argjson INSTANCES $INSTANCES \
+        --arg PERSISTENT_DISK_SIZE_MB "$PERSISTENT_DISK_SIZE_MB" \
+        '
+        . +
+        {
+          "instances": $INSTANCES
+        }
+        +
+        if $INSTANCE_TYPE == "" then
+        {
+          "instance_type": {
+            "id": "automatic"
+          }
+        }
+        else
+        {
+          "instance_type": {
+            "id": $INSTANCE_TYPE
+          }
+        }
+        end
+        +
+        if $PERSISTENT_DISK_SIZE_MB != "null" then
+        {
+          "persistent_disk": {
+            "size_mb": "automatic"
+          }
+        }
+        else .
+        end
+        '
+      )
+
+    JOB_ID=$(echo "$PRODUCT_JOBS" | $JQ_CMD -r --arg RESOURCE $RESOURCE '.jobs[] | select(.name==$RESOURCE) | .guid')
+    UPDATE_RESOURCE_RESPONSE=$($CURL_CMD -path /api/v0/staged/products/$PRODUCT_IDENTIFIER/jobs/$JOB_ID/resource_config -x PUT -d "$DATA")
+    echo "Configuring $RESOURCE with $INSTANCES instances and setting the instance type to $INSTANCE_TYPE and recevied response $UPDATE_RESOURCE_RESPONSE"
+  fi
+}
+
 
 echo "$INSTALLATION_NAMES" | while read INSTALLATION_NAME
 do
   if [[ "$INSTALLATION_NAME" != "p-bosh" ]]; then
     PRODUCT_TYPE=$(echo "$PRODUCTS_DEPLOYED" | $JQ_CMD -r --arg installation_name "$INSTALLATION_NAME" '.[] | select(.installation_name | contains($installation_name)) | .type')
-    PRODUCT_JOBS=$($OM_CMD -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD curl -path /api/v0/staged/products/$INSTALLATION_NAME/jobs -s)
+    PRODUCT_JOBS=$($CURL_CMD -path /api/v0/staged/products/$INSTALLATION_NAME/jobs)
     PRODUCT_IDENTIFIER=$(echo "$PRODUCTS_DEPLOYED" | $JQ_CMD -r --arg installation_name "$INSTALLATION_NAME" '.[] | select(.installation_name | contains($installation_name)) | .guid')
 
     if [[ -f $OUTPUT_DIR/$PRODUCT_TYPE-resources.json ]]; then
       IDENTIFIERS=$(cat $OUTPUT_DIR/$PRODUCT_TYPE-resources.json | $JQ_CMD -r '.resources[] | .identifier')
-      CURRENT_PRODUCT_RESOURCES=$($OM_CMD -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD curl -path /api/v0/staged/products/$INSTALLATION_NAME/resources -s)
+      CURRENT_PRODUCT_RESOURCES=$($CURL_CMD -path /api/v0/staged/products/$INSTALLATION_NAME/resources)
 
       echo "$IDENTIFIERS" | while read IDENTIFIER
       do

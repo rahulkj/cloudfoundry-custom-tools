@@ -1,22 +1,78 @@
 #!/bin/bash
 
-PROPERTIES_FILE=$1
-RESOURCES_FILE=$2
-PRODUCT_NAME=$3
-OUTPUT_DIR=$4
+set -e
+
+source "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"/.init.sh
+
+###
+# Converts a directory consisting of a properties file and a resource file into
+#   a `task.sh` script.
+#
+# Parameters:
+#   {string} INPUT        The JSON file to cleanup
+#   {string} PRODUCT_NAME The name of the product whose JSON is being cleaned up
+##
+
+dependency $JQ_CMD
+
+## Variables
+
+PROPERTIES_FILE="$1"
+RESOURCES_FILE="$2"
+PRODUCT_NAME="$3"
 
 COMMON_VARIABLES=("OPS_MGR_HOST" "OPS_MGR_USR" "OPS_MGR_PWD" "NETWORK_NAME" "OTHER_AZS" "SINGLETON_JOBS_AZ" "PRODUCT_NAME")
 
+val='"$\( .key | split(".") | join("_") | sub("-"; "_") | ltrimstr("_") )"'
+CONVERT_SCRIPT="
+to_entries |
+map(
+    if (.value.value | type) == \"object\"
+    then . + {\"value\": {\"value\": {\"secret\": $val}}}
+    else . + {\"value\": {\"value\": $val}} end
+) |
+from_entries
+"
+
+## Validation
+
+if [ ! -r "$PROPERTIES_FILE" ]; then
+  ERR_CODE=4 error "Provided properties file $PROPERTIES_FILE does not exist."
+fi
+
+if [ ! -r "$RESOURCES_FILE" ]; then
+  ERR_CODE=4 error "Provided resources file $RESOURCES_FILE does not exist."
+fi
+
 if [ ! -d "$OUTPUT_DIR/tasks/config-$PRODUCT_NAME" ]; then
-    mkdir -p "$OUTPUT_DIR/tasks/config-$PRODUCT_NAME"
+  log "Creating directory: $OUTPUT_DIR/tasks/config-$PRODUCT_NAME"
+  mkdir -p "$OUTPUT_DIR/tasks/config-$PRODUCT_NAME"
 fi
 
 OUTFILE="$OUTPUT_DIR/tasks/config-$PRODUCT_NAME/task.sh"
-OUTFILE_YML="$OUTPUT_DIR/tasks/config-$PRODUCT_NAME/task.yml"
-
+if [ -f "$OUTFILE" ]; then
+  log "Removing existing file: $OUTFILE"
+  rm -f "$OUTFILE"
+fi
 touch "$OUTFILE"
+
+OUTFILE_YML="$OUTPUT_DIR/tasks/config-$PRODUCT_NAME/task.yml"
+if [ -f "$OUTFILE_YML" ]; then
+  log "Removing existing file: $OUTFILE_YML"
+  rm -f "$OUTFILE_YML"
+fi
 touch "$OUTFILE_YML"
 
+## Main
+
+# SH File
+
+log "Writing shabang line"
+echo -e "#!/bin/bash\n" >> "$OUTFILE"
+
+# YAML File
+
+log "Writing image_resource"
 echo "---" >> "$OUTFILE_YML"
 echo -e '\n' >> "$OUTFILE_YML"
 echo "platform: linux" >> "$OUTFILE_YML"
@@ -27,26 +83,15 @@ echo "  source: {repository: rjain/buildbox}" >> "$OUTFILE_YML"
 echo -e '\n' >> "$OUTFILE_YML"
 echo "params:" >> "$OUTFILE_YML"
 
+log "Writing common variables"
 for variable in ${COMMON_VARIABLES[@]}; do
   echo "  $variable:" >> "$OUTFILE_YML"
 done
 
-echo -e "#!/bin/bash\n\n" >> "$OUTFILE"
-
 ## Properties
 
+log "Writing properties_config"
 echo 'properties_config=$(jq -n \' >> "$OUTFILE"
-
-val='"$\( .key | split(".") | join("_") | sub("-"; "_") | ltrimstr("_") )"'
-IFS='' read -r -d '' CONVERT_SCRIPT << EOF
-to_entries |
-map(
-    if (.value.value | type) == "object"
-    then . + {"value": {"value": {"secret": $val}}}
-    else . + {"value": {"value": $val}} end
-) |
-from_entries
-EOF
 
 ARGS=
 KEYS=$(cat "$PROPERTIES_FILE" | jq -r 'keys[] | split(".") | join("_") | sub("-"; "_") | ltrimstr("_")')
@@ -59,7 +104,7 @@ done
 
 echo "'$JSON'" >> "$OUTFILE"
 
-echo -e ')\n\n' >> "$OUTFILE"
+echo -e ')\n' >> "$OUTFILE"
 
 echo -e '\n' >> "$OUTFILE_YML"
 echo "inputs:" >> "$OUTFILE_YML"
@@ -72,6 +117,7 @@ echo "  path: pipelines-repo/tasks/config-$PRODUCT_NAME/task.sh" >> "$OUTFILE_YM
 
 ## Resources
 
+log "Writing resources_config"
 echo 'resources_config="{' >> "$OUTFILE"
 
 KEYS=$(cat "$RESOURCES_FILE" | $JQ_CMD -r '.resources | .[] | .identifier' )
@@ -91,14 +137,16 @@ for key in $KEYS; do
 done
 unset i j
 
-echo -e '}"\n\n' >> "$OUTFILE"
+echo -e '}"\n' >> "$OUTFILE"
 
 ## Network
 
+log "Writing network_config"
 echo 'network_config=$(jq -n \' >> "$OUTFILE"
 echo '  --arg network_name "$NETWORK_NAME" \ ' >> "$OUTFILE"
 echo '  --arg other_azs "$OTHER_AZS" \ ' >> "$OUTFILE"
 echo '  --arg singleton_az "$SINGLETON_JOBS_AZ" \ ' >> "$OUTFILE"
+echo '  --arg services_network_name "$SERVICES_NETWORK_NAME" \ ' >> "$OUTFILE"
 echo "'" >> "$OUTFILE"
 echo '  {' >> "$OUTFILE"
 echo '    "network": {' >> "$OUTFILE"
@@ -107,13 +155,17 @@ echo '    },' >> "$OUTFILE"
 echo '    "other_availability_zones": ($other_azs | split(",") | map({name: .})),' >> "$OUTFILE"
 echo '    "singleton_availability_zone": {' >> "$OUTFILE"
 echo '      "name": $singleton_az' >> "$OUTFILE"
+echo '    },' >> "$OUTFILE"
+echo '    "service_network": {' >> "$OUTFILE"
+echo '      "name": $services_network_name' >> "$OUTFILE"
 echo '    }' >> "$OUTFILE"
 echo '  }' >> "$OUTFILE"
 echo "'" >> "$OUTFILE"
-echo -e ')\n\n' >> "$OUTFILE"
+echo -e ')\n' >> "$OUTFILE"
 
 ## Run
 
+log "Writing om-linux command"
 echo 'om-linux \' >> "$OUTFILE"
 echo '  --target https://$OPSMAN_DOMAIN_OR_IP_ADDRESS \' >> "$OUTFILE"
 echo '  --username "$OPS_MGR_USR" \' >> "$OUTFILE"
@@ -124,3 +176,9 @@ echo "  --product-name $PRODUCT_NAME \\" >> "$OUTFILE"
 echo '  --product-properties "$properties_config" \' >> "$OUTFILE"
 echo '  --product-network "$network_config" \' >> "$OUTFILE"
 echo '  --product-resources "$resources_config"' >> "$OUTFILE"
+
+echo "Wrote output to $( dirname "$OUTFILE" )"
+
+## Cleanup
+
+unset OUTFILE OUTFILE_YML PRODUCT_NAME CONVERT_SCRIPT COMMON_VARIABLES
