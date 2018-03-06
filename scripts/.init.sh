@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -ex
 
 source "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"/.set-env.sh
 
@@ -22,7 +22,7 @@ __DIR__() {
 ##
 
 LOGFILE=${LOGFILE:-/dev/null}
-CURL_CMD="$OM_CMD -k -t '$OPS_MGR_HOST' -u '$OPS_MGR_USR' -p '$OPS_MGR_PWD' -s"
+CURL_CMD="$OM_CMD -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD curl -s"
 
 ###
 # Collects the arguments
