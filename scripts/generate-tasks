@@ -21,15 +21,16 @@ PRODUCT_NAME="$3"
 
 COMMON_VARIABLES=("OPS_MGR_HOST" "OPS_MGR_USR" "OPS_MGR_PWD" "NETWORK_NAME" "OTHER_AZS" "SINGLETON_JOBS_AZ" "PRODUCT_NAME")
 
-val='{"value": "$\(.key | split(".") | .[-1])"}'
+val='"$\( .key | split(".") | join("_") | sub("-"; "_") | ltrimstr("_") )"'
 CONVERT_SCRIPT="
 to_entries |
 map(
-  if (.value.value | type) == \"object\"
-  then . + {\"value\": {\"secret\": $val}}
-  else . + {\"value\": $val} end
+    if (.value.value | type) == \"object\"
+    then . + {\"value\": {\"value\": {\"secret\": $val}}}
+    else . + {\"value\": {\"value\": $val}} end
 ) |
-from_entries"
+from_entries
+"
 
 ## Validation
 
@@ -91,7 +92,7 @@ log "Writing properties_config"
 echo 'properties_config=$(jq -n \' >> "$OUTFILE"
 
 ARGS=
-KEYS=$(cat "$PROPERTIES_FILE" | $JQ_CMD -r 'keys[] | split(".") | .[-1]')
+KEYS=$(cat "$PROPERTIES_FILE" | jq -r 'keys[] | split(".") | join("_") | sub("-"; "_") | ltrimstr("_")')
 JSON=$(cat "$PROPERTIES_FILE" | $JQ_CMD "$CONVERT_SCRIPT" | sed 's/\"\(\$.*\)\"/\1/g')
 
 for key in $KEYS; do

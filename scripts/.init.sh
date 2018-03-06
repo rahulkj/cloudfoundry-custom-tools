@@ -2,7 +2,7 @@
 
 set -e
 
-source "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"/../env
+source "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"/.set-env.sh
 
 ###
 # Gets the real directory for a script
@@ -82,7 +82,7 @@ fi
 # Create the OUTPUT directory if not present
 if [ ! -d "$OUTPUT_DIR" ]; then
   log "Creating directory $OUTPUT_DIR"
-  mkdir -p "$OUTPUT"
+  mkdir -p "$OUTPUT_DIR"
 fi
 
 #

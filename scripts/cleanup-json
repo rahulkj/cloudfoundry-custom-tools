@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -ex
 
 source "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"/.init.sh
 
@@ -19,8 +19,8 @@ INPUT="$1"
 PRODUCT_NAME="$2"
 
 DELETE=(type optional credential guid options configurable)
-JSON=#$(cat "$INPUT")
-OUTPUT=#"$OUTPUT_DIR"/modified/"$PRODUCT_NAME".json
+JSON= #$(cat "$INPUT")
+OUTPUT= #"$OUTPUT_DIR"/modified/"$PRODUCT_NAME".json
 
 # Default PRODUCT_NAME
 if [ -z "$PRODUCT_NAME" ]; then

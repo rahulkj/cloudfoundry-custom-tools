@@ -1,5 +1,6 @@
 ## Project ignores ##
 manifests/
+/.env.*
 
 ## Common ignores ##
 
