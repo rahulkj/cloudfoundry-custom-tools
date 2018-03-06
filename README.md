@@ -21,3 +21,9 @@ To use this repository
 
 
 Word of caution with the `task.sh` and `task.yml` files generated. The output there is a good starting point to modify the logic to match the tile configuration. So please take a look at the files before using them directly.
+
+## Environments
+
+The `set-env.sh` file will set the configurable variables for this application.  As such, this file will use the `ENV_FILE` variable to determine which environment file to load.  One should copy the `env` file to `.env.*` to set custom values for the scripts.
+
+__`ENV_FILE` defaults to `.env.local`__
