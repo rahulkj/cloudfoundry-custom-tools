@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -ex
+set -e
 
 source "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"/.set-env.sh
 
