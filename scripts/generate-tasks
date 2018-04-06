@@ -17,6 +17,8 @@ dependency $JQ_CMD
 
 ## Variables
 
+PIPELINES_RESOURCE=${PIPELINES_RESOURCE:-pipelines-repo}
+
 PROPERTIES_FILE="$1"
 RESOURCES_FILE="$2"
 PRODUCT_NAME="$3"
@@ -108,12 +110,12 @@ echo -e ')\n' >> "$OUTFILE"
 
 echo -e '\n' >> "$OUTFILE_YML"
 echo "inputs:" >> "$OUTFILE_YML"
-echo "  - name: pipelines-repo" >> "$OUTFILE_YML"
+echo "  - name: $PIPELINES_RESOURCE" >> "$OUTFILE_YML"
 echo "  - name: om-cli" >> "$OUTFILE_YML"
 echo "  - name: $JQ_CMD" >> "$OUTFILE_YML"
 echo -e '\n' >> "$OUTFILE_YML"
 echo "run:" >> "$OUTFILE_YML"
-echo "  path: pipelines-repo/tasks/config-$PRODUCT_NAME/task.sh" >> "$OUTFILE_YML"
+echo "  path: $PIPELINES_RESOURCE/tasks/config-$PRODUCT_NAME/task.sh" >> "$OUTFILE_YML"
 
 ## Resources
 
