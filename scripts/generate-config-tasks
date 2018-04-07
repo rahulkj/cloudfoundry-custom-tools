@@ -20,8 +20,8 @@ do
   PRODUCT_GUID=$(echo $i)
   PRODUCT_NAME=$(echo $PRODUCTS | $JQ_CMD -r --arg product_guid $i '.[] | select(.guid==$product_guid) |.type')
   if [[ "$PRODUCT_NAME" != "p-bosh" ]]; then
-    echo "--------------------------------------------------------------------------------------------"
-    echo "Working on $PRODUCT_NAME"
+    printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
+    echo "WORKING ON $PRODUCT_NAME"
 
     PRODUCT_PROPERTIES=$($CURL_CMD -path /api/v0/staged/products/$PRODUCT_GUID/properties)
     echo "$PRODUCT_PROPERTIES" > "$OUTPUT_DIR/original/$PRODUCT_NAME.json"
@@ -29,10 +29,12 @@ do
     PRODUCT_RESOURCES=$($CURL_CMD -path /api/v0/staged/products/$PRODUCT_GUID/resources)
     echo "$PRODUCT_RESOURCES" > "$OUTPUT_DIR/original/$PRODUCT_NAME-resources.json"
 
+    echo "ORIGINAL JSON LOCATION: $OUTPUT_DIR/original/$PRODUCT_NAME.json"
+
     "$(dirname "$0")"/cleanup-json "$OUTPUT_DIR/original/$PRODUCT_NAME.json" "$PRODUCT_NAME"
     "$(dirname "$0")"/generate-tasks "$OUTPUT_DIR/modified/$PRODUCT_NAME.json" "$OUTPUT_DIR/original/$PRODUCT_NAME-resources.json" "$PRODUCT_NAME"
 
-    echo "Tasks for the $PRODUCT_NAME are located in $OUTPUT_DIR/tasks/config-$PRODUCT_NAME"
-    echo "--------------------------------------------------------------------------------------------"
+    echo "TASKS LOCATION: $OUTPUT_DIR/tasks/config-$PRODUCT_NAME"
+    printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
   fi
 done

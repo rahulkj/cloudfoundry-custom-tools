@@ -64,7 +64,7 @@ done
 echo "$JSON" | "$JQ_CMD" '.[]' > "$OUTPUT"
 
 
-echo "Wrote output to $OUTPUT"
+echo "MODIFIED JSON LOCATION: $OUTPUT"
 
 ## Cleanup
 

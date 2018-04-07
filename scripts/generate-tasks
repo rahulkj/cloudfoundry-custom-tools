@@ -76,13 +76,12 @@ echo -e "#!/bin/bash\n" >> "$OUTFILE"
 
 log "Writing image_resource"
 echo "---" >> "$OUTFILE_YML"
-echo -e '\n' >> "$OUTFILE_YML"
 echo "platform: linux" >> "$OUTFILE_YML"
-echo -e '\n' >> "$OUTFILE_YML"
+echo >> "$OUTFILE_YML"
 echo "image_resource:" >> "$OUTFILE_YML"
 echo "  type: docker-image" >> "$OUTFILE_YML"
 echo "  source: {repository: rjain/buildbox}" >> "$OUTFILE_YML"
-echo -e '\n' >> "$OUTFILE_YML"
+echo >> "$OUTFILE_YML"
 echo "params:" >> "$OUTFILE_YML"
 
 log "Writing common variables"
@@ -96,7 +95,7 @@ log "Writing properties_config"
 echo 'properties_config=$(jq -n \' >> "$OUTFILE"
 
 ARGS=
-KEYS=$(cat "$PROPERTIES_FILE" | jq -r 'keys[] | split(".") | join("_") | sub("-"; "_") | ltrimstr("_")')
+KEYS=$(cat "$PROPERTIES_FILE" | jq -r 'keys[] | split(".") | join("_") | sub("properties_"; "") | sub("-"; "_") | ltrimstr("_")')
 JSON=$(cat "$PROPERTIES_FILE" | $JQ_CMD "$CONVERT_SCRIPT" | sed 's/\"\(\$.*\)\"/\1/g')
 
 for key in $KEYS; do
@@ -107,15 +106,6 @@ done
 echo "'$JSON'" >> "$OUTFILE"
 
 echo -e ')\n' >> "$OUTFILE"
-
-echo -e '\n' >> "$OUTFILE_YML"
-echo "inputs:" >> "$OUTFILE_YML"
-echo "  - name: $PIPELINES_RESOURCE" >> "$OUTFILE_YML"
-echo "  - name: om-cli" >> "$OUTFILE_YML"
-echo "  - name: $JQ_CMD" >> "$OUTFILE_YML"
-echo -e '\n' >> "$OUTFILE_YML"
-echo "run:" >> "$OUTFILE_YML"
-echo "  path: $PIPELINES_RESOURCE/tasks/config-$PRODUCT_NAME/task.sh" >> "$OUTFILE_YML"
 
 ## Resources
 
@@ -128,6 +118,7 @@ j=$(cat $RESOURCES_FILE | $JQ_CMD '.resources | length')
 i=1
 for key in $KEYS; do
   echo -n "  \\\"$key\\\": {\\\"instances\\\": \$$(echo $key | sed 's/-/_/g' | awk '{print toupper($0)}')_INSTANCES}" >> "$OUTFILE"
+  echo "  $(echo $key | sed 's/-/_/g' | awk '{print toupper($0)}')_INSTANCES:" >> "$OUTFILE_YML"
 
   if [ $((i)) -ne $((j)) ]; then
       echo -n "," >> "$OUTFILE"
@@ -140,6 +131,15 @@ done
 unset i j
 
 echo -e '}"\n' >> "$OUTFILE"
+
+echo >> "$OUTFILE_YML"
+echo "inputs:" >> "$OUTFILE_YML"
+echo "  - name: $PIPELINES_RESOURCE" >> "$OUTFILE_YML"
+echo "  - name: om-cli" >> "$OUTFILE_YML"
+echo "  - name: $JQ_CMD" >> "$OUTFILE_YML"
+echo >> "$OUTFILE_YML"
+echo "run:" >> "$OUTFILE_YML"
+echo "  path: $PIPELINES_RESOURCE/tasks/config-$PRODUCT_NAME/task.sh" >> "$OUTFILE_YML"
 
 ## Network
 
@@ -178,8 +178,6 @@ echo "  --product-name $PRODUCT_NAME \\" >> "$OUTFILE"
 echo '  --product-properties "$properties_config" \' >> "$OUTFILE"
 echo '  --product-network "$network_config" \' >> "$OUTFILE"
 echo '  --product-resources "$resources_config"' >> "$OUTFILE"
-
-echo "Wrote output to $( dirname "$OUTFILE" )"
 
 ## Cleanup
 
