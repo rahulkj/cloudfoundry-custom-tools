@@ -25,7 +25,7 @@ PRODUCT_NAME="$3"
 
 COMMON_VARIABLES=("OPS_MGR_HOST" "OPS_MGR_USR" "OPS_MGR_PWD" "NETWORK_NAME" "OTHER_AZS" "SINGLETON_JOBS_AZ" "PRODUCT_NAME")
 
-val='"$\( .key | split(".") | join("_") | sub("-"; "_") | ltrimstr("_") )"'
+val='"$\( .key | split(".") | join("_") | sub("properties_"; "") | sub("-"; "_") | ltrimstr("_"))"'
 CONVERT_SCRIPT="
 to_entries |
 map(
