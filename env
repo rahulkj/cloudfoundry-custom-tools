@@ -19,6 +19,9 @@ OPS_MGR_PWD=
 #Path to the Output Directory
 OUTPUT_DIR=$CURRENT_PWD/manifests
 
+# The name of the resource for custom pipelines on the `pipeline.yml`.
+PIPELINES_RESOURCE= # Defaults to 'pipelines-repo'
+
 # Specify your cli names or path here
 
 # Possible values are default,enabled,disabled,when-changed
