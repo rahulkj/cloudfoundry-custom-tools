@@ -167,7 +167,7 @@ echo -e ')\n' >> "$OUTFILE"
 
 log "Writing om-linux command"
 echo 'om-linux \' >> "$OUTFILE"
-echo '  --target https://$OPSMAN_DOMAIN_OR_IP_ADDRESS \' >> "$OUTFILE"
+echo '  --target https://$OPS_MGR_HOST \' >> "$OUTFILE"
 echo '  --username "$OPS_MGR_USR" \' >> "$OUTFILE"
 echo '  --password "$OPS_MGR_PWD" \' >> "$OUTFILE"
 echo '  --skip-ssl-validation \' >> "$OUTFILE"
