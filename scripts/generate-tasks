@@ -125,10 +125,19 @@ j=$(cat $RESOURCES_FILE | $JQ_CMD '.resources | length')
 
 i=1
 for key in $KEYS; do
-  DEFAULT_VALUE=$(cat "$RESOURCES_FILE" | $JQ_CMD --arg key $key '.resources[] | select(.identifier == $key) | .instances_best_fit' )
+  DEFAULT_INSTANCE_VALUE=$(cat "$RESOURCES_FILE" | $JQ_CMD --arg key $key '.resources[] | select(.identifier == $key) | .instances_best_fit' )
+  DEFAULT_PERSISTENT_DISK_VALUE=$(cat "$RESOURCES_FILE" | $JQ_CMD -r --arg key $key '.resources[] | select(.identifier == $key) | .persistent_disk_mb' )
+  DEFAULT_INSTANCE_TYPE_VALUE=$(cat "$RESOURCES_FILE" | $JQ_CMD -r --arg key $key '.resources[] | select(.identifier == $key) | .instance_type_best_fit' )
 
-  echo -n "  \\\"$key\\\": {\\\"instances\\\": \${$(echo $key | sed 's/-/_/g' | awk '{print toupper($0)}')_INSTANCES:-$DEFAULT_VALUE}}" >> "$OUTFILE"
+  echo -n "  \\\"$key\\\": {\\\"instances\\\": \${$(echo $key | sed 's/-/_/g' | awk '{print toupper($0)}')_INSTANCES:-$DEFAULT_INSTANCE_VALUE}" >> "$OUTFILE"
+  echo -n ", \\\"instance_type\\\": { \\\"id\\\": \${$(echo $key | sed 's/-/_/g' | awk '{print toupper($0)}')_INSTANCE_TYPE:-\\\"$DEFAULT_INSTANCE_TYPE_VALUE\\\"}}" >> "$OUTFILE"
+  if [[ $DEFAULT_PERSISTENT_DISK_VALUE != null ]]; then
+    echo -n ", \\\"persistent_disk\\\": \${$(echo $key | sed 's/-/_/g' | awk '{print toupper($0)}')_PERSISTENT_DISK_MB:-\\\"$DEFAULT_PERSISTENT_DISK_VALUE\\\"}" >> "$OUTFILE"
+    echo "  $(echo $key | sed 's/-/_/g' | awk '{print toupper($0)}')_PERSISTENT_DISK_MB:" >> "$OUTFILE_YML"
+  fi
+  echo -n "}"  >> "$OUTFILE"
   echo "  $(echo $key | sed 's/-/_/g' | awk '{print toupper($0)}')_INSTANCES:" >> "$OUTFILE_YML"
+  echo "  $(echo $key | sed 's/-/_/g' | awk '{print toupper($0)}')_INSTANCE_TYPE:" >> "$OUTFILE_YML"
 
   if [ $((i)) -ne $((j)) ]; then
       echo -n "," >> "$OUTFILE"
