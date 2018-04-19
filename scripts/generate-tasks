@@ -23,9 +23,9 @@ PROPERTIES_FILE="$1"
 RESOURCES_FILE="$2"
 PRODUCT_NAME="$3"
 
-COMMON_VARIABLES=("OPS_MGR_HOST" "OPS_MGR_USR" "OPS_MGR_PWD" "NETWORK_NAME" "OTHER_AZS" "SINGLETON_JOBS_AZ" "PRODUCT_NAME")
+COMMON_VARIABLES=("DEBUG" "OPS_MGR_HOST" "OPS_MGR_USR" "OPS_MGR_PWD" "NETWORK_NAME" "SERVICE_NETWORK_NAME" "OTHER_AZS" "SINGLETON_JOBS_AZ" "PRODUCT_NAME")
 
-val='"$\( .key | split(".") | join("_") | sub("properties_"; "") | sub("-"; "_") | ltrimstr("_"))"'
+val='"$\( .key | split(".") | join("_") | sub("properties_"; "") | gsub("-"; "_") | ltrimstr("_"))"'
 CONVERT_SCRIPT="
 to_entries |
 map(
@@ -70,7 +70,27 @@ touch "$OUTFILE_YML"
 # SH File
 
 log "Writing shabang line"
-echo -e "#!/bin/bash\n" >> "$OUTFILE"
+echo -e "#!/bin/bash" >> "$OUTFILE"
+
+echo  >> "$OUTFILE"
+
+echo 'if [[ $DEBUG == true ]]; then'  >> "$OUTFILE"
+echo '  set -ex'  >> "$OUTFILE"
+echo 'else' >> "$OUTFILE"
+echo '  set -e' >> "$OUTFILE"
+echo 'fi' >> "$OUTFILE"
+
+echo  >> "$OUTFILE"
+
+echo 'chmod +x om-cli/om-linux' >> "$OUTFILE"
+echo 'OM_CMD=./om-cli/om-linux' >> "$OUTFILE"
+
+echo  >> "$OUTFILE"
+
+echo 'chmod +x ./jq/jq-linux64' >> "$OUTFILE"
+echo 'JQ_CMD=./jq/jq-linux64' >> "$OUTFILE"
+
+echo  >> "$OUTFILE"
 
 # YAML File
 
@@ -92,9 +112,9 @@ done
 ## Properties
 
 log "Writing properties_config"
-echo 'properties_config=$(jq -n \' >> "$OUTFILE"
+echo 'properties_config=$($JQ_CMD -n \' >> "$OUTFILE"
 
-KEYS=$(cat "$PROPERTIES_FILE" | $JQ_CMD -r 'keys[] | split(".") | join("_") | sub("properties_"; "") | sub("-"; "_") | ltrimstr("_")')
+KEYS=$(cat "$PROPERTIES_FILE" | $JQ_CMD -r 'keys[] | split(".") | join("_") | sub("properties_"; "") | gsub("-"; "_") | ltrimstr("_")')
 ORIGINAL_KEYS=( $(cat "$PROPERTIES_FILE" | $JQ_CMD -r 'keys[]') )
 JSON=$(cat "$PROPERTIES_FILE" | $JQ_CMD "$CONVERT_SCRIPT" | sed 's/\"\(\$.*\)\"/\1/g')
 
@@ -103,10 +123,13 @@ for key in $KEYS; do
   DEFAULT_VALUE=$(cat "$PROPERTIES_FILE" | $JQ_CMD --arg pos ${ORIGINAL_KEYS[$i]} '.[$pos].value')
 
   if (( $(grep -c . <<<"$DEFAULT_VALUE") > 1 )); then
-    DEFAULT_VALUE=null
+    echo "  --arg $key \"\${$(echo $key | awk '{print toupper($0)}')}\" \\" >> "$OUTFILE"
+  elif [[ "$DEFAULT_VALUE" == "null" ]]; then
+    echo "  --arg $key \"\${$(echo $key | awk '{print toupper($0)}')}\" \\" >> "$OUTFILE"
+  else
+    echo "  --arg $key \"\${$(echo $key | awk '{print toupper($0)}'):-$DEFAULT_VALUE}\" \\" >> "$OUTFILE"
   fi
 
-  echo "  --arg $key \${$(echo $key | awk '{print toupper($0)}'):-$DEFAULT_VALUE} \\" >> "$OUTFILE"
   echo "  $(echo $key | awk '{print toupper($0)}'):" >> "$OUTFILE_YML"
   i=$((i+1))
 done
@@ -130,14 +153,16 @@ for key in $KEYS; do
   DEFAULT_INSTANCE_TYPE_VALUE=$(cat "$RESOURCES_FILE" | $JQ_CMD -r --arg key $key '.resources[] | select(.identifier == $key) | .instance_type_best_fit' )
 
   echo -n "  \\\"$key\\\": {\\\"instances\\\": \${$(echo $key | sed 's/-/_/g' | awk '{print toupper($0)}')_INSTANCES:-$DEFAULT_INSTANCE_VALUE}" >> "$OUTFILE"
-  echo -n ", \\\"instance_type\\\": { \\\"id\\\": \${$(echo $key | sed 's/-/_/g' | awk '{print toupper($0)}')_INSTANCE_TYPE:-\\\"$DEFAULT_INSTANCE_TYPE_VALUE\\\"}}" >> "$OUTFILE"
+  echo -n ", \\\"instance_type\\\": { \\\"id\\\": \\\"\${$(echo $key | sed 's/-/_/g' | awk '{print toupper($0)}')_INSTANCE_TYPE:-$DEFAULT_INSTANCE_TYPE_VALUE}\\\"}" >> "$OUTFILE"
+
+  echo "  $(echo $key | sed 's/-/_/g' | awk '{print toupper($0)}')_INSTANCES:" >> "$OUTFILE_YML"
+  echo "  $(echo $key | sed 's/-/_/g' | awk '{print toupper($0)}')_INSTANCE_TYPE:" >> "$OUTFILE_YML"
+
   if [[ $DEFAULT_PERSISTENT_DISK_VALUE != null ]]; then
-    echo -n ", \\\"persistent_disk\\\": \${$(echo $key | sed 's/-/_/g' | awk '{print toupper($0)}')_PERSISTENT_DISK_MB:-\\\"$DEFAULT_PERSISTENT_DISK_VALUE\\\"}" >> "$OUTFILE"
+    echo -n ", \\\"persistent_disk\\\": { \\\"size_mb\\\": \\\"\${$(echo $key | sed 's/-/_/g' | awk '{print toupper($0)}')_PERSISTENT_DISK_MB:-$DEFAULT_PERSISTENT_DISK_VALUE}\\\"}" >> "$OUTFILE"
     echo "  $(echo $key | sed 's/-/_/g' | awk '{print toupper($0)}')_PERSISTENT_DISK_MB:" >> "$OUTFILE_YML"
   fi
   echo -n "}"  >> "$OUTFILE"
-  echo "  $(echo $key | sed 's/-/_/g' | awk '{print toupper($0)}')_INSTANCES:" >> "$OUTFILE_YML"
-  echo "  $(echo $key | sed 's/-/_/g' | awk '{print toupper($0)}')_INSTANCE_TYPE:" >> "$OUTFILE_YML"
 
   if [ $((i)) -ne $((j)) ]; then
       echo -n "," >> "$OUTFILE"
@@ -163,11 +188,11 @@ echo "  path: $PIPELINES_RESOURCE/tasks/config-$PRODUCT_NAME/task.sh" >> "$OUTFI
 ## Network
 
 log "Writing network_config"
-echo 'network_config=$(jq -n \' >> "$OUTFILE"
+echo 'network_config=$($JQ_CMD -n \' >> "$OUTFILE"
 echo '  --arg network_name "$NETWORK_NAME" \ ' >> "$OUTFILE"
 echo '  --arg other_azs "$OTHER_AZS" \ ' >> "$OUTFILE"
 echo '  --arg singleton_az "$SINGLETON_JOBS_AZ" \ ' >> "$OUTFILE"
-echo '  --arg services_network_name "$SERVICES_NETWORK_NAME" \ ' >> "$OUTFILE"
+echo '  --arg service_network_name "$SERVICE_NETWORK_NAME" \ ' >> "$OUTFILE"
 echo "'" >> "$OUTFILE"
 echo '  {' >> "$OUTFILE"
 echo '    "network": {' >> "$OUTFILE"
@@ -178,7 +203,7 @@ echo '    "singleton_availability_zone": {' >> "$OUTFILE"
 echo '      "name": $singleton_az' >> "$OUTFILE"
 echo '    },' >> "$OUTFILE"
 echo '    "service_network": {' >> "$OUTFILE"
-echo '      "name": $services_network_name' >> "$OUTFILE"
+echo '      "name": $service_network_name' >> "$OUTFILE"
 echo '    }' >> "$OUTFILE"
 echo '  }' >> "$OUTFILE"
 echo "'" >> "$OUTFILE"
@@ -187,7 +212,7 @@ echo -e ')\n' >> "$OUTFILE"
 ## Run
 
 log "Writing om-linux command"
-echo 'om-linux \' >> "$OUTFILE"
+echo '$OM_CMD \' >> "$OUTFILE"
 echo '  --target https://$OPS_MGR_HOST \' >> "$OUTFILE"
 echo '  --username "$OPS_MGR_USR" \' >> "$OUTFILE"
 echo '  --password "$OPS_MGR_PWD" \' >> "$OUTFILE"
