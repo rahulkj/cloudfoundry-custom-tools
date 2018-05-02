@@ -23,14 +23,14 @@ PROPERTIES_FILE="$1"
 RESOURCES_FILE="$2"
 PRODUCT_NAME="$3"
 
-COMMON_VARIABLES=("DEBUG" "OPS_MGR_HOST" "OPS_MGR_USR" "OPS_MGR_PWD" "NETWORK_NAME" "SERVICE_NETWORK_NAME" "OTHER_AZS" "SINGLETON_JOBS_AZ" "PRODUCT_NAME")
+COMMON_VARIABLES=("DEBUG" "OPS_MGR_HOST" "OPS_MGR_USR" "OPS_MGR_PWD" "NETWORK_NAME" "SERVICE_NETWORK_NAME" "OTHER_AZS" "SINGLETON_JOBS_AZ" "PRODUCT_IDENTIFIER")
 
 val='"$\( .key | split(".") | join("_") | sub("properties_"; "") | gsub("-"; "_") | ltrimstr("_"))"'
 CONVERT_SCRIPT="
 to_entries |
 map(
     if (.value.value | type) == \"object\"
-    then . + {\"value\": {\"value\": {\"secret\": $val}}}
+    then . + {\"value\": {\"value\": {\"FIX-ME\": \"FIX-ME\"}}}
     else . + {\"value\": {\"value\": $val}} end
 ) |
 from_entries
@@ -218,7 +218,7 @@ echo '  --username "$OPS_MGR_USR" \' >> "$OUTFILE"
 echo '  --password "$OPS_MGR_PWD" \' >> "$OUTFILE"
 echo '  --skip-ssl-validation \' >> "$OUTFILE"
 echo '  configure-product \' >> "$OUTFILE"
-echo "  --product-name $PRODUCT_NAME \\" >> "$OUTFILE"
+echo '  --product-name "$PRODUCT_IDENTIFIER" \' >> "$OUTFILE"
 echo '  --product-properties "$properties_config" \' >> "$OUTFILE"
 echo '  --product-network "$network_config" \' >> "$OUTFILE"
 echo '  --product-resources "$resources_config"' >> "$OUTFILE"
