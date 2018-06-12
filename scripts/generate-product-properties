@@ -1,0 +1,72 @@
+#!/bin/bash
+
+set -e
+
+source "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"/.init.sh
+
+###
+# Converts a directory consisting of a properties file and a resource file into
+#   a `task.sh` script.
+#
+# Parameters:
+#   {string} INPUT        The JSON file to cleanup
+#   {string} PRODUCT_NAME The name of the product whose JSON is being cleaned up
+##
+
+dependency $JQ_CMD
+
+## Variables
+
+PIPELINES_RESOURCE=${PIPELINES_RESOURCE:-pipelines-repo}
+
+PROPERTIES_FILE="$1"
+RESOURCES_FILE="$2"
+PRODUCT_NAME="$3"
+
+## Validation
+
+if [ ! -r "$PROPERTIES_FILE" ]; then
+  ERR_CODE=4 error "Provided properties file $PROPERTIES_FILE does not exist."
+fi
+
+if [ ! -r "$RESOURCES_FILE" ]; then
+  ERR_CODE=4 error "Provided resources file $RESOURCES_FILE does not exist."
+fi
+
+if [ ! -d "$OUTPUT_DIR/params/$PRODUCT_NAME" ]; then
+  log "Creating directory: $OUTPUT_DIR/params/$PRODUCT_NAME"
+  mkdir -p "$OUTPUT_DIR/params/$PRODUCT_NAME"
+fi
+
+## Resources
+
+log "Writing resources_config"
+
+KEYS=$(cat "$RESOURCES_FILE" | $JQ_CMD -r '.resources[] | .identifier' )
+j=$(cat $RESOURCES_FILE | $JQ_CMD '.resources | length')
+
+RESOURCES_YML=$OUTPUT_DIR/params/$PRODUCT_NAME/resources.yml
+
+echo 'product_resources: |' >> "$RESOURCES_YML"
+echo '  ---' >> "$RESOURCES_YML"
+
+for key in $KEYS; do
+  DEFAULT_INSTANCE_VALUE=$(cat "$RESOURCES_FILE" | $JQ_CMD --arg key $key '.resources[] | select(.identifier == $key) | .instances_best_fit' )
+  DEFAULT_PERSISTENT_DISK_VALUE=$(cat "$RESOURCES_FILE" | $JQ_CMD -r --arg key $key '.resources[] | select(.identifier == $key) | .persistent_disk_mb' )
+  DEFAULT_INSTANCE_TYPE_VALUE=$(cat "$RESOURCES_FILE" | $JQ_CMD -r --arg key $key '.resources[] | select(.identifier == $key) | .instance_type_best_fit' )
+
+  echo "  $key:" >> "$RESOURCES_YML"
+  echo "    instances: $DEFAULT_INSTANCE_VALUE" >> "$RESOURCES_YML"
+  echo "    instance_type:" >> "$RESOURCES_YML"
+  echo "      id: $DEFAULT_INSTANCE_TYPE_VALUE" >> "$RESOURCES_YML"
+
+  if [[ $DEFAULT_PERSISTENT_DISK_VALUE != null ]]; then
+    echo "    persistent_disk:" >> "$RESOURCES_YML"
+    echo "      size_mb: \"$DEFAULT_PERSISTENT_DISK_VALUE\"" >> "$RESOURCES_YML"
+  fi
+done
+
+## Properties
+ruby -ryaml -rjson -e 'puts YAML.dump(JSON.parse(STDIN.read))' < $PROPERTIES_FILE > $OUTPUT_DIR/params/$PRODUCT_NAME/properties.yml
+
+unset OUTFILE OUTFILE_YML PRODUCT_NAME CONVERT_SCRIPT COMMON_VARIABLES

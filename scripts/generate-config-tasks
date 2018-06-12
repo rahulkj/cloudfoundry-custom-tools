@@ -32,9 +32,9 @@ do
     echo "ORIGINAL JSON LOCATION: $OUTPUT_DIR/original/$PRODUCT_NAME.json"
 
     "$(dirname "$0")"/cleanup-json "$OUTPUT_DIR/original/$PRODUCT_NAME.json" "$PRODUCT_NAME"
-    "$(dirname "$0")"/generate-tasks "$OUTPUT_DIR/modified/$PRODUCT_NAME.json" "$OUTPUT_DIR/original/$PRODUCT_NAME-resources.json" "$PRODUCT_NAME"
+    "$(dirname "$0")"/generate-product-properties "$OUTPUT_DIR/modified/$PRODUCT_NAME.json" "$OUTPUT_DIR/original/$PRODUCT_NAME-resources.json" "$PRODUCT_NAME"
 
-    echo "TASKS LOCATION: $OUTPUT_DIR/tasks/config-$PRODUCT_NAME"
+    echo "TASKS LOCATION: $OUTPUT_DIR/params/$PRODUCT_NAME"
     printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
   fi
 done

@@ -1,0 +1,35 @@
+#!/bin/bash -e
+
+source ./env
+
+format="\n| %-30s | %40s | %20s | %20s |\n"
+printf "$format" "DEPLOYMENT" "ERRAND" "ERRAND_STATE" "STATE"
+
+PRODUCTS_DEPLOYED=$($CURL_CMD -path /api/v0/deployed/products)
+INSTALLATION_NAMES=$(echo "$PRODUCTS_DEPLOYED" | $JQ_CMD -r '.[].installation_name')
+
+echo "$INSTALLATION_NAMES" | while read INSTALLATION_NAME
+do
+  if [[ "$INSTALLATION_NAME" != "p-bosh" ]]; then
+    ERRANDS_RESPONSE=$($CURL_CMD -path /api/v0/staged/products/$INSTALLATION_NAME/errands)
+    PRODUCT_TYPE=$(echo "$PRODUCTS_DEPLOYED" | $JQ_CMD -r --arg installation_name "$INSTALLATION_NAME" '.[] | select(.installation_name | contains($installation_name)) | .type')
+
+    ERRANDS=$(echo "$ERRANDS_RESPONSE" | $JQ_CMD -r '.errands[] | .name')
+
+    echo "$ERRANDS" | while read ERRAND
+    do
+      CURRENT_STATUS=$(echo "$ERRANDS_RESPONSE" | $JQ_CMD -r --arg errand "$ERRAND" '.errands[] | select(.name == $errand) | .post_deploy')
+      if [[ "$CURRENT_STATUS" == "false" ]]; then
+        printf "$format" "$PRODUCT_TYPE" "$ERRAND" "disabled" "Turned Off By User"
+      elif [[ "$CURRENT_STATUS" == "$ERRAND_STATE" ]]; then
+        printf "$format" "$PRODUCT_TYPE" "$ERRAND" "$CURRENT_STATUS" "Unchanged"
+      else
+        RESPONSE=$($OM_CMD -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD set-errand-state -p $PRODUCT_TYPE -e $ERRAND --post-deploy-state $ERRAND_STATE)
+        printf "$format" "$PRODUCT_TYPE" "$ERRAND" "$ERRAND_STATE" "Changed"
+      fi
+    done
+
+  fi
+done
+
+echo "Successfully updated the errands state to $ERRAND_STATE"
