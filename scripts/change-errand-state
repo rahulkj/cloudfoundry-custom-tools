@@ -1,8 +1,8 @@
 #!/bin/bash -e
 
-source ./env
+source "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"/.init.sh
 
-format="\n| %-30s | %40s | %20s | %20s |\n"
+format="\n| %-15s | %-30s | %-10s | %-10s |\n"
 printf "$format" "DEPLOYMENT" "ERRAND" "ERRAND_STATE" "STATE"
 
 PRODUCTS_DEPLOYED=$($CURL_CMD -path /api/v0/deployed/products)
@@ -14,14 +14,12 @@ do
     ERRANDS_RESPONSE=$($CURL_CMD -path /api/v0/staged/products/$INSTALLATION_NAME/errands)
     PRODUCT_TYPE=$(echo "$PRODUCTS_DEPLOYED" | $JQ_CMD -r --arg installation_name "$INSTALLATION_NAME" '.[] | select(.installation_name | contains($installation_name)) | .type')
 
-    ERRANDS=$(echo "$ERRANDS_RESPONSE" | $JQ_CMD -r '.errands[] | .name')
+    ERRANDS=$(echo "$ERRANDS_RESPONSE" | $JQ_CMD -r '.errands[] | select(.post_deploy) | .name')
 
     echo "$ERRANDS" | while read ERRAND
     do
       CURRENT_STATUS=$(echo "$ERRANDS_RESPONSE" | $JQ_CMD -r --arg errand "$ERRAND" '.errands[] | select(.name == $errand) | .post_deploy')
-      if [[ "$CURRENT_STATUS" == "false" ]]; then
-        printf "$format" "$PRODUCT_TYPE" "$ERRAND" "disabled" "Turned Off By User"
-      elif [[ "$CURRENT_STATUS" == "$ERRAND_STATE" ]]; then
+      if [[ "$CURRENT_STATUS" == "$ERRAND_STATE" ]]; then
         printf "$format" "$PRODUCT_TYPE" "$ERRAND" "$CURRENT_STATUS" "Unchanged"
       else
         RESPONSE=$($OM_CMD -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD set-errand-state -p $PRODUCT_TYPE -e $ERRAND --post-deploy-state $ERRAND_STATE)
