@@ -22,7 +22,7 @@ __DIR__() {
 ##
 
 LOGFILE=${LOGFILE:-/dev/null}
-CURL_CMD="$OM_CMD -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD curl -s"
+CURL_CMD="$OM_CMD -e $ENV_FILE curl -s"
 
 ###
 # Collects the arguments

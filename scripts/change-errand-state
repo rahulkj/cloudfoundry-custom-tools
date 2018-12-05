@@ -22,7 +22,7 @@ do
       if [[ "$CURRENT_STATUS" == "$ERRAND_STATE" ]]; then
         printf "$format" "$PRODUCT_TYPE" "$ERRAND" "$CURRENT_STATUS" "Unchanged"
       else
-        RESPONSE=$($OM_CMD -k -t $OPS_MGR_HOST -u $OPS_MGR_USR -p $OPS_MGR_PWD set-errand-state -p $PRODUCT_TYPE -e $ERRAND --post-deploy-state $ERRAND_STATE)
+        RESPONSE=$($OM_CMD -e $ENV_FILE set-errand-state -p $PRODUCT_TYPE -e $ERRAND --post-deploy-state $ERRAND_STATE)
         printf "$format" "$PRODUCT_TYPE" "$ERRAND" "$ERRAND_STATE" "Changed"
       fi
     done
